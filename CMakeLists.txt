@@ -9,6 +9,9 @@ add_library(rocksdb STATIC IMPORTED)
 set_target_properties(rocksdb PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/extern/rocksdb/librocksdb.a)
 include_directories(${CMAKE_SOURCE_DIR}/extern/rocksdb/include)
 
+execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 
 add_executable(exp_robust ${CMAKE_SOURCE_DIR}/experiment/exp_robust.cc)
 target_link_libraries(exp_robust rocksdb)
