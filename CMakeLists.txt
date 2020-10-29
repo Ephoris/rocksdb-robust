@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.16)
 project(rocksdb-robust)
+
 set(CMAKE_CXX_STANDARD 11)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # =========================================================================================================
 # Compile Options
@@ -40,6 +43,8 @@ include_directories(${CMAKE_SOURCE_DIR}/extern/rocksdb/include)
 find_package(ZLIB REQUIRED)
 find_package(BZip2 REQUIRED)
 find_package(LZ4 REQUIRED)
+target_link_libraries(rocksdb
+                      INTERFACE ZLIB::ZLIB BZip2::BZip2 LZ4::LZ4)
 
 
 # =========================================================================================================
@@ -47,28 +52,31 @@ find_package(LZ4 REQUIRED)
 # =========================================================================================================
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
-set(monkey_src
-    ${CMAKE_SOURCE_DIR}/src/monkey/monkey_filter_policy.cpp
+file(GLOB_RECURSE
+        tmpdb_src
+        CONFIGURE_DEPENDS
+        ${CMAKE_SOURCE_DIR}/src/tmpdb/*.cpp
+        ${CMAKE_SOURCE_DIR}/src/tmpdb/*.hpp
 )
-add_library(monkey ${monkey_src})
-
-# set(common_src
-# )
-# add_library(common ${common_src})
+add_library(tmpdb ${tmpdb_src})
+target_link_libraries(tmpdb INTERFACE rocksdb)
 
 
 # =========================================================================================================
 # Tools
 # =========================================================================================================
-set(tools_infra_src
-    ${CMAKE_SOURCE_DIR}/tools/infrastructure/bulk_loader.cpp
-    ${CMAKE_SOURCE_DIR}/tools/infrastructure/data_generator.cpp
+
+file(GLOB_RECURSE
+        tools_src
+        CONFIGURE_DEPENDS
+        ${CMAKE_SOURCE_DIR}/tools/infrastructure/*.cpp
+        ${CMAKE_SOURCE_DIR}/tools/infrastructure/*.hpp
 )
-add_library(tools ${tools_infra_src})
+add_library(tools ${tools_src})
 
 # Tools executables
 add_executable(db_builder ${CMAKE_SOURCE_DIR}/tools/db_builder.cpp)
-target_link_libraries(db_builder rocksdb monkey tools ZLIB::ZLIB BZip2::BZip2 LZ4::LZ4)
+target_link_libraries(db_builder tmpdb tools)
 
 add_executable(db_execute ${CMAKE_SOURCE_DIR}/tools/db_execute.cpp)
-target_link_libraries(db_execute rocksdb monkey tools ZLIB::ZLIB BZip2::BZip2 LZ4::LZ4)
+target_link_libraries(db_execute tmpdb tools)

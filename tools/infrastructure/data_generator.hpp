@@ -25,7 +25,6 @@ public:
         size_t kv_size,
         const std::string key_prefix,
         const std::string value_prefix);
-
 };
 
 

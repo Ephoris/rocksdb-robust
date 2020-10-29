@@ -6,9 +6,17 @@
 #include "common/debug.hpp"
 #include "rocksdb/db.h"
 
-rocksdb::Status bulk_load_random
-(
-    std::string db_path
-);
+#define BATCH_SIZE 1000
+
+void load_batch(
+    rocksdb::WriteBatch & batch,
+    size_t batch_size, size_t entry_size,
+    std::string value_prefix,
+    std::string key_prefix);
+
+rocksdb::Status bulk_load_random(
+    std::string db_path,
+    size_t entry_size,
+    size_t total_entries);
 
 #endif /*  BULK_LOADER_H_ */

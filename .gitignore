@@ -33,3 +33,6 @@
 
 # Ignore build folder
 build
+
+# Ignores VSCode
+.vscode/*

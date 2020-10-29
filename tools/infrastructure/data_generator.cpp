@@ -13,6 +13,7 @@ DataGenerator::DataGenerator(int seed)
     std::srand(seed);
 }
 
+
 std::string DataGenerator::generate_key(const std::string key_prefix)
 {
     unsigned long long rand = std::rand() % KEY_DOMAIN;
@@ -25,7 +26,7 @@ std::string DataGenerator::generate_key(const std::string key_prefix)
 std::string DataGenerator::generate_val(size_t value_size, const std::string value_prefix)
 {
     unsigned long random_size = value_size - value_prefix.size();
-    std::string value = value_prefix + std::string(random_size, 'a' + (1 % 26));
+    std::string value = value_prefix + std::string(random_size, 'a');
 
     return value;
 }
@@ -37,6 +38,7 @@ std::pair<std::string, std::string> DataGenerator::generate_kv_pair(
     const std::string value_prefix)
 {
     std::string key = this->generate_key(key_prefix);
+    assert(key.size() < kv_size && "Requires larger key size");
     size_t value_size = kv_size - key.size();
     std::string value = this->generate_val(value_size, value_prefix);
 

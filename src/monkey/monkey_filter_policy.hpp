@@ -13,10 +13,10 @@
 
 namespace monkey {
 
-// class MonkeyFilterPolicy : public rocksdb::FilterPolicy
-// {
-// public:
-//     MonkeyFilterPolicy();
+class MonkeyFilterPolicy : public rocksdb::FilterPolicy
+{
+public:
+    MonkeyFilterPolicy(double bits_per_element) {this->default_bpe = bits_per_element;};
 
 //     const char * Name() { return monkey_policy->Name(); };
 
@@ -30,7 +30,9 @@ namespace monkey {
 
 // protected:
 //     const std::unique_ptr<const FilterPolicy> monkey_policy;
-// };
+protected:
+    double default_bpe;
+};
 
 }
 
