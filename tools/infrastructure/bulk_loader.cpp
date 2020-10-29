@@ -1,24 +1,19 @@
 #include "bulk_loader.hpp"
 
-rocksdb::Status bulk_load_random(std::string db_path, size_t entry_size, size_t total_entries)
-{
-    rocksdb::Options options;
-    options.create_if_missing = true;
-    options.compaction_style = rocksdb::kCompactionStyleNone;
-    options.write_buffer_size = entry_size * total_entries; // Increase the buffer size to quickly bulk load
-    options.use_direct_reads = false;
-    options.compression = rocksdb::kNoCompression;
 
-    rocksdb::DB * db = nullptr;
-    rocksdb::Status status = rocksdb::DB::Open(options, db_path, &db);
+// rocksdb::Status LSMBulkLoader::bulk_load_entries(rocksdb::DB * db, size_t num_entries)
+// {
+//     // size_t E = this->fluid_opt.entry_size;
+//     // size_t B = this->fluid_opt.buffer_size;
+//     // double T = this->fluid_opt.size_ratio;
 
-    if (!status.ok())
-    {
-        fprintf(stderr, "[ERROR OPENING DB] : %s\n", status.ToString().c_str());
-        delete db;
-        return status;
-    }
+//     // size_t derived_num_levels = ceil(log((num_entries * E * (T - 1)) / (B * T )) / log(T));
 
-    delete db;
-    return status;
-}
+//     return rocksdb::Status::Busy();
+// }
+
+
+// rocksdb::Status LSMBulkLoader::bulk_load_levels(rocksdb::DB * db, size_t levels)
+// {
+//     return rocksdb::Status::Busy();
+// }

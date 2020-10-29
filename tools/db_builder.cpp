@@ -3,7 +3,7 @@
 #include "clipp.h"
 
 #include "rocksdb/db.h"
-#include "tmpdb/fluidlsm.hpp"
+#include "tmpdb/fluid_lsm_compactor.hpp"
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
 #include "common/debug.hpp"
@@ -29,6 +29,8 @@ typedef struct
 
     bool verbose = false;
     bool destroy_db = false;
+
+    int max_rocksdb_levels = 100;
 
 } environment;
 
@@ -70,6 +72,11 @@ environment parse_args(int argc, char * argv[])
                 (option("-L", "--levels").set(env.build_fill, build_mode::LEVELS) & integer("num", env.L)) 
                     % ("total filled levels [default: " + to_string(env.L) + "]")
             )
+        ),
+        "minor options:" % (
+            (option("--max_rocksdb_level") & integer("num", env.max_rocksdb_levels))
+                % ("limits the maximum levels rocksdb has [default :" + to_string(env.max_rocksdb_levels) + "]"),
+            (option(""))
         )
     );
 
@@ -90,12 +97,13 @@ environment parse_args(int argc, char * argv[])
     if (help)
     {
         auto fmt = doc_formatting{}.doc_column(42);
-        std::cout << make_man_page(cli, "exp_robust", fmt);
+        std::cout << make_man_page(cli, "db_builder", fmt);
         exit(EXIT_FAILURE);
     }
 
     return env;
 }
+
 
 void fill_fluid_opt(environment env, tmpdb::FluidOptions & fluid_opt)
 {
@@ -116,17 +124,15 @@ void build_db(environment env)
 
     rocksdb_opt.create_if_missing = true;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
-    rocksdb_opt.max_background_compactions = 1;
-    rocksdb_opt.max_background_flushes = 1;
-    rocksdb_opt.num_levels = 7;
     rocksdb_opt.compression = rocksdb::kNoCompression;
     rocksdb_opt.IncreaseParallelism(1);
+
+    rocksdb_opt.PrepareForBulkLoad();
+    rocksdb_opt.num_levels = env.max_rocksdb_levels;
 
     fill_fluid_opt(env, fluid_opt);
     tmpdb::FluidLSMCompactor * fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
-
-    // rocksdb_opt.PrepareForBulkLoad();
 
     rocksdb::DB * db = nullptr;
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
@@ -139,7 +145,6 @@ void build_db(environment env)
 
     fluid_compactor->init_open_db(db);
 
-    PRINT_DEBUG("Closing DB\n");
     db->Close();
     delete db;
 }

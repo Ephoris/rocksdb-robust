@@ -2,20 +2,31 @@ cmake_minimum_required(VERSION 3.16)
 project(rocksdb-robust)
 
 set(CMAKE_CXX_STANDARD 11)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+message("C : ${CMAKE_C_COMPILER}")
+message("CXX : ${CMAKE_CXX_COMPILER}")
 
 # =========================================================================================================
 # Compile Options
 # =========================================================================================================
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_compile_options("-Wall" "-Wextra" "-Werror")
+
+# Add our warnings
+add_compile_options("-Wall" "-Wextra")
+
+add_compile_options("-fstack-protector-strong"
+                    "-fexceptions"
+                    "-fasynchronous-unwind-tables"
+                    "-ftrapv")
 
 option(DEBUG "Debug mode on or off" OFF)
 if(${DEBUG})
     message("DEBUG: Compiled with debug flags")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG")
+    add_compile_options("-O0" "-g3" "-ggdb")
+else()
+    add_compile_options("-O2")
 endif()
 
 

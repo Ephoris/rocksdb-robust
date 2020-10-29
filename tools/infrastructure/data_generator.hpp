@@ -2,6 +2,7 @@
 #define DATA_GENERATOR_H_
 
 #include <ctime>
+#include <cassert>
 #include <string>
 #include <vector>
 
@@ -17,14 +18,23 @@ public:
     DataGenerator();
     DataGenerator(int seed);
 
-    std::string generate_key(const std::string key_prefix);
+    virtual std::string generate_key(const std::string key_prefix) = 0;
 
-    std::string generate_val(size_t value_size, const std::string value_prefix);
+    virtual std::string generate_val(size_t value_size, const std::string value_prefix) = 0;
 
     std::pair<std::string, std::string> generate_kv_pair(
         size_t kv_size,
         const std::string key_prefix,
         const std::string value_prefix);
+};
+
+class RandomGenerator : public DataGenerator
+{
+    RandomGenerator() : DataGenerator() {};
+    RandomGenerator(int seed) : DataGenerator(seed) {};
+
+    std::string generate_key(const std::string key_prefix);
+    std::string generate_val(size_t value_size, const std::string value_prefix);
 };
 
 

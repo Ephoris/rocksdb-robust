@@ -1,4 +1,4 @@
-#include "tmpdb/fluidlsm.hpp"
+#include "tmpdb/fluid_lsm_compactor.hpp"
 
 using namespace tmpdb;
 
@@ -84,32 +84,27 @@ FluidCompactor::FluidCompactor(const FluidOptions fluid_opt, const rocksdb::Opti
     this->rocksdb_compact_opt.output_file_size_limit = this->rocksdb_opt.target_file_size_base;
 
     this->levels.resize(this->rocksdb_opt.num_levels);
-    PRINT_DEBUG("Level resizing to %d\n", this->rocksdb_opt.num_levels);
 }
 
 void FluidCompactor::init_open_db(rocksdb::DB * db)
 {
     this->level_mutex.lock();
 
-    PRINT_DEBUG("Grabbing column family meta data\n");
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
 
-    // PRINT_DEBUG("Number of fluid levels: %zu\n", this->levels.size());
     for (size_t idx = 0; idx < this->levels.size(); idx++)
     {
         this->levels[idx].runs.clear();
     }
 
     size_t num_runs_in_fluid_level_1 = cf_meta.levels[0].files.size() + !cf_meta.levels[1].files.empty();
-    // PRINT_DEBUG("Number of runs in the first fluid level: %zu\n", num_runs_in_fluid_level_1);
 
     std::vector<rocksdb::SstFileMetaData> file_names;
     for (size_t idx = num_runs_in_fluid_level_1; idx < this->fluid_opt.lower_level_run_max; idx++)
     {
         this->add_run(db, file_names, 0, 0);
     }
-    // PRINT_DEBUG("Finished adding file_names\n");
 
     for (auto file : cf_meta.levels[0].files)
     {
@@ -126,12 +121,10 @@ void FluidCompactor::init_open_db(rocksdb::DB * db)
     file_names.clear();
 
     double K = this->fluid_opt.lower_level_run_max;
-    // PRINT_DEBUG("Adding all levels after 0, 1\n");
-    PRINT_DEBUG("cf_meta.levels.size(): %zu\n", cf_meta.levels.size());
     for (size_t idx = 2; idx < cf_meta.levels.size(); idx++)
     {
         rocksdb::LevelMetaData current_level = cf_meta.levels[idx];
-        size_t fluid_level = ceil(((double) current_level.level - 1) / (K + 1));
+        size_t fluid_level = std::ceil(((double) current_level.level - 1) / (K + 1));
 
         file_names.clear();
         for (auto file : current_level.files)
@@ -142,14 +135,13 @@ void FluidCompactor::init_open_db(rocksdb::DB * db)
     }
 
     this->level_mutex.unlock();
-    // PRINT_DEBUG("Finished initialization\n");
 }
 
 void FluidCompactor::add_run(rocksdb::DB * db, std::vector<rocksdb::SstFileMetaData> const & file_names, size_t fluid_level, size_t rocksdb_level)
 {
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
-    PRINT_DEBUG("Adding run at level (Fluid -> RocksDB) : (%zu, %zu)\n", fluid_level, rocksdb_level);
+    // PRINT_DEBUG("Adding run at level (Fluid -> RocksDB) : (%zu, %zu)\n", fluid_level, rocksdb_level);
 
     FluidRun run(rocksdb_level);
     for (rocksdb::SstFileMetaData file : file_names)
@@ -199,7 +191,7 @@ size_t FluidLSMCompactor::add_files_to_compaction(
 
     size_t target_level = level_id;
     double T = this->fluid_opt.size_ratio;
-    size_t current_level_capacticty = this->rocksdb_opt.write_buffer_size * pow(T, level_id + 1) * (T - 1) / T;
+    size_t current_level_capacticty = this->rocksdb_opt.write_buffer_size * std::pow(T, level_id + 1) * (T - 1) / T;
     if (compaction_size_bytes > current_level_capacticty)
     {
         target_level += 1;
@@ -225,7 +217,7 @@ CompactionTask * FluidLSMCompactor::PickCompaction(rocksdb::DB * db, const std::
 void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB * db, const ROCKSDB_NAMESPACE::FlushJobInfo & info)
 {
     size_t largest_level = this->largest_occupied_level();
-    for (size_t level_idx = largest_level; level_idx >= 0; level_idx--)
+    for (size_t level_idx = largest_level; level_idx > 0; level_idx--)
     {
         size_t runs = this->levels[level_idx].num_live_runs();
         bool valid_lower_levels = (level_idx < largest_level && runs > this->fluid_opt.lower_level_run_max);
@@ -272,4 +264,3 @@ void FluidLSMCompactor::ScheduleCompaction(CompactionTask * task)
 {
     this->rocksdb_opt.env->Schedule(& FluidLSMCompactor::CompactFiles, task);
 }
-

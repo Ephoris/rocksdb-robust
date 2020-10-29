@@ -1,6 +1,7 @@
-#ifndef FLUIDLSM_H_
-#define FLUIDLSM_H_
+#ifndef FLUID_LSM_COMPACTOR_H_
+#define FLUID_LSM_COMPACTOR_H_
 
+#include <cmath>
 #include <set>
 #include <mutex>
 #include <vector>
@@ -121,8 +122,6 @@ public:
     FluidLSMCompactor(const FluidOptions fluid_opt, const rocksdb::Options rocksdb_opt)
         : FluidCompactor(fluid_opt, rocksdb_opt) {};
 
-    ~FluidLSMCompactor() {};
-
     size_t largest_occupied_level() const;
 
     CompactionTask * PickCompaction(rocksdb::DB * db, const std::string & cf_name, const size_t level) override;
@@ -133,6 +132,14 @@ public:
 
     void ScheduleCompaction(CompactionTask * task) override;
 
+    /** Estimates the number of levels needed based on
+     * 
+     * N : Number of keys
+     * T : size ratio
+     * E : entry size
+     * B : buffer size
+     */
+    static size_t estimate_levels(size_t N, double T, size_t E, size_t B);
 private:
     size_t add_files_to_compaction(size_t level_id, std::vector<std::string> & file_names);
 };
@@ -140,4 +147,4 @@ private:
 
 } /* namespace tmpdb */
 
-#endif /* FLUIDLSM_H_ */
+#endif /* FLUID_LSM_COMPACTOR_H_ */
