@@ -29,6 +29,18 @@ rocksdb::CompactionOptions compact_options;
 size_t origin_level_id;
 bool retry_on_fail;
 
+/**
+ * @brief Construct a new Compaction Task object
+ * 
+ * @param _db
+ * @param _compactor
+ * @param _column_family_name
+ * @param _input_file_names
+ * @param _output_level
+ * @param _compact_options
+ * @param _origin_level_id
+ * @param _retry_on_fail
+ */
 CompactionTask(
     rocksdb::DB * _db, FluidCompactor* _compactor,
     const std::string& _column_family_name,
@@ -48,7 +60,10 @@ CompactionTask(
 } CompactionTask;
 
 
-// One run within the LSM tree
+/**
+ * @brief Container to represent one single run within the FluidLSM Tree
+ * 
+ */
 class FluidRun
 {
 public:
@@ -64,7 +79,10 @@ public:
 };
 
 
-// One level within the LSM tree
+/**
+ * @brief Container to represent one single level within the FluidLSMTree
+ * 
+ */
 class FluidLevel
 {
 public:
@@ -84,8 +102,9 @@ public:
 };
 
 
-/** FluidCompact from compact_files_example.cc of RocksDB
- * Simple 'interface' for external-compaction algorithms
+/**
+ * @brief Abstract class, provides the infrastructure for a Fluid LSM Tree Compactor
+ * 
  */
 class FluidCompactor : public ROCKSDB_NAMESPACE::EventListener
 {

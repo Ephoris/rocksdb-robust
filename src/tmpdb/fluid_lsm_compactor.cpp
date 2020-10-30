@@ -2,7 +2,6 @@
 
 using namespace tmpdb;
 
-// FluidRun
 bool FluidRun::contains(std::string file_name)
 {
     return this->file_names.count(file_name) == 1;
@@ -19,8 +18,6 @@ bool FluidRun::add_file(rocksdb::SstFileMetaData file)
 }
 
 
-
-// FluidLevel
 size_t FluidLevel::size() const
 {
     size_t num_runs = 0;
@@ -75,8 +72,6 @@ bool FluidLevel::contains(std::string file_name)
 }
 
 
-
-// FluidCompactor 
 FluidCompactor::FluidCompactor(const FluidOptions fluid_opt, const rocksdb::Options rocksdb_opt)
     : fluid_opt(fluid_opt), rocksdb_opt(rocksdb_opt), rocksdb_compact_opt()
 {
@@ -146,15 +141,12 @@ void FluidCompactor::add_run(rocksdb::DB * db, std::vector<rocksdb::SstFileMetaD
     FluidRun run(rocksdb_level);
     for (rocksdb::SstFileMetaData file : file_names)
     {
-        PRINT_DEBUG("File name: %s\n", file.name.c_str());
         run.add_file(file);
     }
     this->levels[fluid_level].add_run(run);
 }
 
 
-
-// FluidLSMCompactor
 size_t FluidLSMCompactor::largest_occupied_level() const
 {
     size_t largest_level = 0;
@@ -185,7 +177,6 @@ size_t FluidLSMCompactor::add_files_to_compaction(
 
             file_names.push_back(file.name);
             compaction_size_bytes += file.size;
-            PRINT_DEBUG("Pushed back file %s\n", file.name.c_str());
         }
     }
 
@@ -217,8 +208,10 @@ CompactionTask * FluidLSMCompactor::PickCompaction(rocksdb::DB * db, const std::
 void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB * db, const ROCKSDB_NAMESPACE::FlushJobInfo & info)
 {
     size_t largest_level = this->largest_occupied_level();
-    for (size_t level_idx = largest_level; level_idx > 0; level_idx--)
+    size_t level_idx;
+    for (size_t level = 0; level < largest_level; level++)
     {
+        level_idx = level - 1;
         size_t runs = this->levels[level_idx].num_live_runs();
         bool valid_lower_levels = (level_idx < largest_level && runs > this->fluid_opt.lower_level_run_max);
         bool valid_last_level = (level_idx == largest_level && runs > this->fluid_opt.largest_level_run_max);

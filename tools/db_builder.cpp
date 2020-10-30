@@ -116,7 +116,7 @@ void fill_fluid_opt(environment env, tmpdb::FluidOptions & fluid_opt)
 }
 
 
-void build_db(environment env)
+void build_db(environment & env)
 {
     printf("Building database at %s\n", env.db_path.c_str());
     rocksdb::Options rocksdb_opt;
@@ -138,7 +138,7 @@ void build_db(environment env)
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
     if (!status.ok())
     {
-        fprintf(stderr, "Problem Opening DB:\nStatus: %s\n", status.ToString().c_str());
+        fprintf(stderr, "[ERROR: Status] %s\n", status.ToString().c_str());
         delete db;
         exit(EXIT_FAILURE);
     }
