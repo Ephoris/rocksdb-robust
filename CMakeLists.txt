@@ -1,16 +1,29 @@
 cmake_minimum_required(VERSION 3.16)
-project(rocksdb-robust)
+project(rocksdb-robust VERSION 1.0
+                       DESCRIPTION "RocksDB wrapper that implements components of a robust LSM tree"
+                       LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-message("C : ${CMAKE_C_COMPILER}")
-message("CXX : ${CMAKE_CXX_COMPILER}")
+message(STATUS "C : ${CMAKE_C_COMPILER}")
+message(STATUS "CXX : ${CMAKE_CXX_COMPILER}")
 
 # =====================================================================================================================
 # Compile Options
 # =====================================================================================================================
+option(DEBUG "Debug mode on or off" OFF)
+
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+    execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    RESULT_VARIABLE GIT_SUBMOD_RESULT)
+    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+        message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
+    endif()
+endif()
 
 # Add our warnings
 add_compile_options("-Wall" "-Wextra")
@@ -20,7 +33,6 @@ add_compile_options("-fstack-protector-strong"
                     "-fasynchronous-unwind-tables"
                     "-ftrapv")
 
-option(DEBUG "Debug mode on or off" OFF)
 if(${DEBUG})
     message("DEBUG: Compiled with debug flags")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG")
@@ -35,16 +47,9 @@ endif()
 # =====================================================================================================================
 include_directories(extern)
 
-# if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern/rocksdb/librocksdb.a)
-#     message( FATAL_ERROR "RocksDB not compiled. Please go to extern/rocksdb and run `make static_lib`" )
-#     execute_process(COMMAND make DISABLE_WARNINGS_AS_ERROR=True -j ${ROCKSDB_BUILD_THREADS} static_lib
-#                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/extern/rocksdb)
-# endif()
-
 add_library(rocksdb STATIC IMPORTED)
 set_target_properties(rocksdb PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/extern/rocksdb/librocksdb.a)
 include_directories(${CMAKE_SOURCE_DIR}/extern/rocksdb/include)
-
 
 # =====================================================================================================================
 # Grab required packages
@@ -58,21 +63,20 @@ find_package(snappy REQUIRED)
 target_link_libraries(rocksdb
     INTERFACE BZip2::BZip2 LZ4::LZ4 Threads::Threads ZLIB::ZLIB zstd::zstd snappy::snappy ${CMAKE_DL_LIBS})
 
-
 # =====================================================================================================================
 # module source files
 # =====================================================================================================================
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
 file(GLOB_RECURSE
-        tmpdb_src
+        TMPDB_SRC
         CONFIGURE_DEPENDS
         ${CMAKE_SOURCE_DIR}/src/tmpdb/*.cpp
         ${CMAKE_SOURCE_DIR}/src/tmpdb/*.hpp
 )
-add_library(tmpdb ${tmpdb_src})
+add_library(tmpdb STATIC "${TMPDB_SRC}")
+target_compile_features(tmpdb PUBLIC cxx_std_11)
 target_link_libraries(tmpdb INTERFACE rocksdb)
-
 
 # =====================================================================================================================
 # Tools
@@ -88,7 +92,7 @@ add_library(tools ${tools_src})
 
 # Tools executables
 add_executable(db_builder ${CMAKE_SOURCE_DIR}/tools/db_builder.cpp)
-target_link_libraries(db_builder tmpdb tools) 
+target_link_libraries(db_builder PUBLIC tmpdb tools) 
 
 add_executable(db_execute ${CMAKE_SOURCE_DIR}/tools/db_execute.cpp)
-target_link_libraries(db_execute tmpdb tools)
+target_link_libraries(db_execute PUBLIC tmpdb tools)
