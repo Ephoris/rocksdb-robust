@@ -9,9 +9,11 @@ DataGenerator::DataGenerator()
 
 DataGenerator::DataGenerator(int seed)
 {
+    spdlog::trace("Data generator with seed : {}", seed);
     this->seed = seed;
     std::srand(seed);
 }
+
 
 std::pair<std::string, std::string> DataGenerator::generate_kv_pair(
     size_t kv_size,

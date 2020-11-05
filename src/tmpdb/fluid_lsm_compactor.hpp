@@ -10,8 +10,8 @@
 #include "rocksdb/env.h"
 #include "rocksdb/listener.h"
 
+#include "spdlog/spdlog.h"
 #include "tmpdb/fluid_options.hpp"
-#include "common/debug.hpp"
 
 namespace tmpdb
 {

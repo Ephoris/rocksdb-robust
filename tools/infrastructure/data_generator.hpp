@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "common/debug.hpp"
+#include "spdlog/spdlog.h"
 
 #define KEY_DOMAIN 1000000000
 
@@ -16,6 +16,7 @@ public:
     int seed = 0;
 
     DataGenerator();
+
     DataGenerator(int seed);
 
     virtual std::string generate_key(const std::string key_prefix) = 0;
@@ -28,12 +29,15 @@ public:
         const std::string value_prefix);
 };
 
+
 class RandomGenerator : public DataGenerator
 {
+public:
     RandomGenerator() : DataGenerator() {};
     RandomGenerator(int seed) : DataGenerator(seed) {};
 
     std::string generate_key(const std::string key_prefix);
+
     std::string generate_val(size_t value_size, const std::string value_prefix);
 };
 

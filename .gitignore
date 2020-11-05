@@ -31,8 +31,12 @@
 *.out
 *.app
 
-# Ignore build folder
+# Build files
 build
 
-# Ignores VSCode
-.vscode/*
+# Editor settings
+.vscode
+.cache
+
+# Logs folder
+logs

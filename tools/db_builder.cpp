@@ -1,12 +1,12 @@
 #include <iostream>
 
 #include "clipp.h"
+#include "spdlog/spdlog.h"
 
 #include "rocksdb/db.h"
 #include "tmpdb/fluid_lsm_compactor.hpp"
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
-#include "common/debug.hpp"
 
 typedef enum { BUILD, EXECUTE } cmd_mode;
 
@@ -27,7 +27,7 @@ typedef struct
     size_t N = 1e6;
     size_t L = 1;
 
-    bool verbose = false;
+    int verbose = 0;
     bool destroy_db = false;
 
     int max_rocksdb_levels = 100;
@@ -40,11 +40,14 @@ environment parse_args(int argc, char * argv[])
     using namespace clipp;
     using std::to_string;
 
+    size_t minimum_entry_size = 32;
+
     environment env;
     bool help = false;
 
     auto general_opt = "general options" % (
-        (option("-v", "--verbose").set(env.verbose)) % "show detailed output",
+        (option("-v", "--verbose") & integer("level", env.verbose))
+            % ("Logging levels (DEFAULT: INFO, 1: DEBUG, 2: TRACE)"),
         (option("-h", "--help").set(help, true)) % "prints this message"
     );
 
@@ -88,10 +91,10 @@ environment parse_args(int argc, char * argv[])
     if (!parse(argc, argv, cli))
         help = true;
 
-    if (env.E < 32)
+    if (env.E < minimum_entry_size)
     {
         help = true;
-        printf("Entry size is less then 32 bytes.\n");
+        spdlog::error("Entry size is less than {} bytes", minimum_entry_size);
     }
 
     if (help)
@@ -118,7 +121,7 @@ void fill_fluid_opt(environment env, tmpdb::FluidOptions & fluid_opt)
 
 void build_db(environment & env)
 {
-    printf("Building database at %s\n", env.db_path.c_str());
+    spdlog::info("Building DB: {}", env.db_path);
     rocksdb::Options rocksdb_opt;
     tmpdb::FluidOptions fluid_opt;
 
@@ -131,19 +134,29 @@ void build_db(environment & env)
     rocksdb_opt.num_levels = env.max_rocksdb_levels;
 
     fill_fluid_opt(env, fluid_opt);
-    tmpdb::FluidLSMCompactor * fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
+    RandomGenerator gen = RandomGenerator();
+    FluidLSMBulkLoader * fluid_compactor = new FluidLSMBulkLoader(gen, fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
     rocksdb::DB * db = nullptr;
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
     if (!status.ok())
     {
-        fprintf(stderr, "[ERROR: Status] %s\n", status.ToString().c_str());
+        spdlog::error("Problems openiing DB {}", status.ToString());
         delete db;
         exit(EXIT_FAILURE);
     }
 
     fluid_compactor->init_open_db(db);
+    status = fluid_compactor->bulk_load_entries(db, env.N);
+    spdlog::info("Finished building");
+
+    if (!status.ok())
+    {
+        spdlog::error("Problems bulk loading: {}", status.ToString());
+        delete db;
+        exit(EXIT_FAILURE);
+    }
 
     db->Close();
     delete db;
@@ -152,13 +165,26 @@ void build_db(environment & env)
 
 int main(int argc, char * argv[])
 {
-    printf("DB Builder\n");
-
+    spdlog::set_pattern("[%T.%e] %^[%l]%$ %v");
     environment env = parse_args(argc, argv);
+
+    spdlog::info("Welcome to db_builder!");
+    if(env.verbose == 1)
+    {
+        spdlog::set_level(spdlog::level::debug);
+    }
+    else if(env.verbose == 2)
+    {
+        spdlog::set_level(spdlog::level::trace);
+    }
+    else
+    {
+        spdlog::set_level(spdlog::level::info);
+    }
 
     if (env.destroy_db)
     {
-        printf("Destroying database at: %s\n", env.db_path.c_str());
+        spdlog::info("Destroying DB: {}", env.db_path);
         rocksdb::DestroyDB(env.db_path, rocksdb::Options());
     }
 

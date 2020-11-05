@@ -10,7 +10,6 @@ bool FluidRun::contains(std::string file_name)
 bool FluidRun::add_file(rocksdb::SstFileMetaData file)
 {
     // TODO: Any error checking?
-    PRINT_DEBUG("Adding file...\n");
     files.push_back(file);
     file_names.insert(file.name);
 
@@ -84,6 +83,7 @@ FluidCompactor::FluidCompactor(const FluidOptions fluid_opt, const rocksdb::Opti
 void FluidCompactor::init_open_db(rocksdb::DB * db)
 {
     this->level_mutex.lock();
+    spdlog::trace("Initializing open database: {}", db->GetName());
 
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
@@ -242,7 +242,7 @@ void FluidLSMCompactor::CompactFiles(void * arg)
         output_file_names
     );
 
-    PRINT_DEBUG("CompactFiles() finished with status %s", s.ToString().c_str());
+    spdlog::trace("CompactFiles() finished with status: {}", s.ToString());
     if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
     {
         // If a compaction task with its retry_on_fail=true failed,
