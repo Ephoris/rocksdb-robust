@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <limits>
+#include <string>
 
 namespace tmpdb
 {
@@ -24,6 +25,12 @@ public:
     CompactionPolicy compaction_policy = TIERING;
 
     FluidOptions() {};
+
+    FluidOptions(std::string config_path);
+
+    bool read_config(std::string config_path);
+
+    bool write_config(std::string config_path);
 };
 
 } /* namespace tmpdb */
