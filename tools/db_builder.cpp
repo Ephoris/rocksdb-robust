@@ -31,6 +31,7 @@ typedef struct
     bool destroy_db = false;
 
     int max_rocksdb_levels = 100;
+    int parallelism = 1;
 
 } environment;
 
@@ -54,15 +55,15 @@ environment parse_args(int argc, char * argv[])
     auto build_opt = (
         "build options:" % (
             (value("db_path", env.db_path)) % "path to the db",
-            (option("-T", "--size_ratio") & number("ratio", env.T))
+            (option("-T", "--size-ratio") & number("ratio", env.T))
                 % ("size ratio, [default: " + to_string(env.T) + "]"),
             (option("-K", "--lower_level_size_ratio") & number("ratio", env.K))
                 % ("size ratio, [default: " + to_string(env.K) + "]"),
             (option("-Z", "--largest_level_size_ratio") & number("ratio", env.Z))
                 % ("size ratio, [default: " + to_string(env.Z) + "]"),
-            (option("-B", "--buffer_size") & integer("size", env.B))
+            (option("-B", "--buffer-size") & integer("size", env.B))
                 % ("buffer size (in bytes), [default: " + to_string(env.B) + "]"),
-            (option("-E", "--entry_size") & integer("size", env.E))
+            (option("-E", "--entry-size") & integer("size", env.E))
                 % ("entry size (bytes) [default: " + to_string(env.E) + ", min: 32]"),
             (option("-b", "--bpe") & number("bits", env.bits_per_element))
                 % ("bits per entry per bloom filter across levels [default: " + to_string(env.bits_per_element) + "]"),
@@ -75,27 +76,34 @@ environment parse_args(int argc, char * argv[])
                 (option("-L", "--levels").set(env.build_fill, build_mode::LEVELS) & integer("num", env.L)) 
                     % ("total filled levels [default: " + to_string(env.L) + "]")
             )
-        ),
+        )
+    );
+
+    auto minor_opt = (
         "minor options:" % (
-            (option("--max_rocksdb_level") & integer("num", env.max_rocksdb_levels))
-                % ("limits the maximum levels rocksdb has [default :" + to_string(env.max_rocksdb_levels) + "]"),
-            (option(""))
+            (option("--max_rocksdb-level") & integer("num", env.max_rocksdb_levels))
+                % ("limits the maximum levels rocksdb has [default: " + to_string(env.max_rocksdb_levels) + "]"),
+            (option("--parallelism") & integer("num", env.parallelism))
+                % ("parallelism for writing to db [default: " + to_string(env.parallelism) + "]")
         )
     );
 
     auto cli = (
-        general_opt, 
-        build_opt 
+        general_opt,
+        build_opt, 
+        minor_opt
     );
 
     if (!parse(argc, argv, cli))
         help = true;
+    printf("help: %d\n", help);
 
     if (env.E < minimum_entry_size)
     {
         help = true;
         spdlog::error("Entry size is less than {} bytes", minimum_entry_size);
     }
+    printf("env.parallelism %d\n", env.parallelism);
 
     if (help)
     {
@@ -128,7 +136,7 @@ void build_db(environment & env)
     rocksdb_opt.create_if_missing = true;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt.compression = rocksdb::kNoCompression;
-    rocksdb_opt.IncreaseParallelism(1);
+    rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     rocksdb_opt.PrepareForBulkLoad();
     rocksdb_opt.num_levels = env.max_rocksdb_levels;
@@ -171,14 +179,17 @@ int main(int argc, char * argv[])
     spdlog::info("Welcome to db_builder!");
     if(env.verbose == 1)
     {
+        spdlog::info("Log level: DEBUG");
         spdlog::set_level(spdlog::level::debug);
     }
     else if(env.verbose == 2)
     {
+        spdlog::info("Log level: TRACE");
         spdlog::set_level(spdlog::level::trace);
     }
     else
     {
+        spdlog::info("Log level: INFO");
         spdlog::set_level(spdlog::level::info);
     }
 

@@ -10,7 +10,7 @@
 
 #include "data_generator.hpp"
 
-#define BATCH_SIZE 1000
+#define BATCH_SIZE 10000
 
 class FluidLSMBulkLoader : public tmpdb::FluidCompactor
 {

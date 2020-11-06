@@ -71,7 +71,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB * db, size_
     write_opt.disableWAL = true;
     write_opt.no_slowdown = false;
 
-    size_t buffer_size = this->fluid_opt.entry_size * num_entries * 2;
+    size_t buffer_size = this->fluid_opt.entry_size * num_entries * 8;
     rocksdb::Status status = db->SetOptions({{"write_buffer_size", std::to_string(buffer_size)}});
 
     std::string value_prefix = std::to_string(level_idx) + "|";

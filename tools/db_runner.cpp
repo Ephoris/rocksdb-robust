@@ -12,9 +12,9 @@ typedef struct
 {
     std::string db_path;
 
-    size_t non_empty_reads = 100;
-    size_t empty_reads = 100;
-    size_t writes = 100;
+    size_t non_empty_reads = 0;
+    size_t empty_reads = 0;
+    size_t writes = 0;
 
     int verbose = 0;
 } environment;
