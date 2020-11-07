@@ -1,14 +1,17 @@
 #ifndef FLUID_OPTIONS_H_
 #define FLUID_OPTIONS_H_
 
+#include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <limits>
 #include <string>
 
+#include "spdlog/spdlog.h"
+#include "nlohmann/json.hpp"
+
 namespace tmpdb
 {
-
-typedef enum {LEVELING, TIERING, LAZY_LEVELING} CompactionPolicy;
 
 class FluidOptions
 {
@@ -21,8 +24,6 @@ public:
     double bits_per_element = 5.0;      //> bits per element per bloom filter at all levels (h)
 
     size_t file_size = std::numeric_limits<size_t>::max();
-
-    CompactionPolicy compaction_policy = TIERING;
 
     FluidOptions() {};
 

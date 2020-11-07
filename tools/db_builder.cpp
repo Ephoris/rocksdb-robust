@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ctime>
 
 #include "clipp.h"
 #include "spdlog/spdlog.h"
@@ -7,6 +8,7 @@
 #include "tmpdb/fluid_lsm_compactor.hpp"
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
+
 
 typedef enum { BUILD, EXECUTE } cmd_mode;
 
@@ -32,6 +34,8 @@ typedef struct
 
     int max_rocksdb_levels = 100;
     int parallelism = 1;
+
+    int seed = std::time(nullptr); 
 
 } environment;
 
@@ -84,7 +88,9 @@ environment parse_args(int argc, char * argv[])
             (option("--max_rocksdb-level") & integer("num", env.max_rocksdb_levels))
                 % ("limits the maximum levels rocksdb has [default: " + to_string(env.max_rocksdb_levels) + "]"),
             (option("--parallelism") & integer("num", env.parallelism))
-                % ("parallelism for writing to db [default: " + to_string(env.parallelism) + "]")
+                % ("parallelism for writing to db [default: " + to_string(env.parallelism) + "]"),
+            (option("--seed") & integer("num", env.seed))
+                % "seed for generating data [default: random from time]"
         )
     );
 
@@ -96,14 +102,12 @@ environment parse_args(int argc, char * argv[])
 
     if (!parse(argc, argv, cli))
         help = true;
-    printf("help: %d\n", help);
 
     if (env.E < minimum_entry_size)
     {
         help = true;
         spdlog::error("Entry size is less than {} bytes", minimum_entry_size);
     }
-    printf("env.parallelism %d\n", env.parallelism);
 
     if (help)
     {
@@ -136,13 +140,14 @@ void build_db(environment & env)
     rocksdb_opt.create_if_missing = true;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt.compression = rocksdb::kNoCompression;
+    rocksdb_opt.error_if_exists = true;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     rocksdb_opt.PrepareForBulkLoad();
     rocksdb_opt.num_levels = env.max_rocksdb_levels;
 
     fill_fluid_opt(env, fluid_opt);
-    RandomGenerator gen = RandomGenerator();
+    RandomGenerator gen = RandomGenerator(env.seed);
     FluidLSMBulkLoader * fluid_compactor = new FluidLSMBulkLoader(gen, fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
@@ -150,7 +155,8 @@ void build_db(environment & env)
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
     if (!status.ok())
     {
-        spdlog::error("Problems openiing DB {}", status.ToString());
+        spdlog::error("Problems opening DB");
+        spdlog::error("{}", status.ToString());
         delete db;
         exit(EXIT_FAILURE);
     }
@@ -165,6 +171,8 @@ void build_db(environment & env)
         delete db;
         exit(EXIT_FAILURE);
     }
+
+    fluid_opt.write_config(env.db_path + "/fluid_config.json");
 
     db->Close();
     delete db;

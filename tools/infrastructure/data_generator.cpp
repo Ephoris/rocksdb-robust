@@ -3,14 +3,20 @@
 
 DataGenerator::DataGenerator()
 {
+    this->seed = std::time(nullptr);
+
+    spdlog::trace("Data generator with seed : {}", seed);
+
     std::srand(this->seed);
 }
 
 
 DataGenerator::DataGenerator(int seed)
 {
-    spdlog::trace("Data generator with seed : {}", seed);
     this->seed = seed;
+
+    spdlog::trace("Data generator with seed : {}", seed);
+
     std::srand(seed);
 }
 

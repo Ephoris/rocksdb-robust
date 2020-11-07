@@ -4,6 +4,7 @@
 #include <ctime>
 #include <cassert>
 #include <string>
+#include <ctime>
 #include <vector>
 
 #include "spdlog/spdlog.h"
@@ -13,7 +14,7 @@
 class DataGenerator
 {
 public:
-    int seed = 0;
+    int seed;
 
     DataGenerator();
 
@@ -34,6 +35,7 @@ class RandomGenerator : public DataGenerator
 {
 public:
     RandomGenerator() : DataGenerator() {};
+
     RandomGenerator(int seed) : DataGenerator(seed) {};
 
     std::string generate_key(const std::string key_prefix);

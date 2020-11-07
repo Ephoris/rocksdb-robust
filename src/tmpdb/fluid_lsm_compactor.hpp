@@ -151,15 +151,25 @@ public:
 
     void ScheduleCompaction(CompactionTask * task) override;
 
-    /** Estimates the number of levels needed based on
+    /**
+     * @brief Estimates the number of levels needed based on
      * 
-     * N : Number of keys
-     * T : size ratio
-     * E : entry size
-     * B : buffer size
+     * @param N Total number of entries
+     * @param T Size ratio
+     * @param E Entry size
+     * @param B Buffer size
+     * @return size_t Number of levels
      */
     static size_t estimate_levels(size_t N, double T, size_t E, size_t B);
+
 private:
+    /**
+     * @brief Adds all file names eligible for compaction to file_names
+     * 
+     * @param level_id Index of the level
+     * @param file_names Empty list to be filled with names of compacted files
+     * @return size_t Target level for compaction
+     */
     size_t add_files_to_compaction(size_t level_id, std::vector<std::string> & file_names);
 };
 
