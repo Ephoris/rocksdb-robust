@@ -82,8 +82,7 @@ FluidCompactor::FluidCompactor(const FluidOptions fluid_opt, const rocksdb::Opti
 
 void FluidCompactor::init_open_db(rocksdb::DB * db)
 {
-    this->level_mutex.lock();
-    spdlog::trace("Initializing open database: {}", db->GetName());
+    spdlog::debug("Initializing open database: {}", db->GetName());
 
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
@@ -128,15 +127,13 @@ void FluidCompactor::init_open_db(rocksdb::DB * db)
         }
         this->add_run(db, file_names, fluid_level, current_level.level);
     }
-
-    this->level_mutex.unlock();
 }
 
 void FluidCompactor::add_run(rocksdb::DB * db, std::vector<rocksdb::SstFileMetaData> const & file_names, size_t fluid_level, size_t rocksdb_level)
 {
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
-    // PRINT_DEBUG("Adding run at level (Fluid -> RocksDB) : (%zu, %zu)\n", fluid_level, rocksdb_level);
+    // spdlog::trace("Adding run at level (Fluid -> RocksDB) : ({}, {})", fluid_level, rocksdb_level);
 
     FluidRun run(rocksdb_level);
     for (rocksdb::SstFileMetaData file : file_names)
@@ -168,6 +165,7 @@ size_t FluidLSMCompactor::add_files_to_compaction(
     size_t level_id,
     std::vector<std::string> & file_names)
 {
+    spdlog::trace("Adding files to compact at level {}", level_id);
     size_t compaction_size_bytes = 0;
     for(auto & run : this->levels[level_id].runs)
     {
@@ -175,6 +173,7 @@ size_t FluidLSMCompactor::add_files_to_compaction(
         {
             if (file.being_compacted) { continue; }
 
+            spdlog::trace("Adding file {} to compact", file.name);
             file_names.push_back(file.name);
             compaction_size_bytes += file.size;
         }
@@ -193,6 +192,7 @@ size_t FluidLSMCompactor::add_files_to_compaction(
 
 CompactionTask * FluidLSMCompactor::PickCompaction(rocksdb::DB * db, const std::string & cf_name, const size_t level_id)
 {
+    spdlog::trace("Picking compaciton at level {}", level_id);
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
 
@@ -207,6 +207,7 @@ CompactionTask * FluidLSMCompactor::PickCompaction(rocksdb::DB * db, const std::
 
 void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB * db, const ROCKSDB_NAMESPACE::FlushJobInfo & info)
 {
+    spdlog::trace("Running flush complete subroutine");
     size_t largest_level = this->largest_occupied_level();
     size_t level_idx;
     for (size_t level = 0; level < largest_level; level++)
@@ -233,6 +234,7 @@ void FluidLSMCompactor::CompactFiles(void * arg)
     std::unique_ptr<CompactionTask> task(reinterpret_cast<CompactionTask *>(arg));
     assert(task);
     assert(task->db);
+    spdlog::trace("Performing compaction rocksdb level {} -> {}", task->origin_level_id, task->output_level);
     std::vector<std::string> * output_file_names = new std::vector<std::string>();
     rocksdb::Status s = task->db->CompactFiles(
         task->compact_options,
@@ -242,6 +244,7 @@ void FluidLSMCompactor::CompactFiles(void * arg)
         output_file_names
     );
 
+    assert(task->output_level > (int) task->origin_level_id);
     spdlog::trace("CompactFiles() finished with status: {}", s.ToString());
     if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
     {
@@ -255,5 +258,6 @@ void FluidLSMCompactor::CompactFiles(void * arg)
 
 void FluidLSMCompactor::ScheduleCompaction(CompactionTask * task)
 {
+    spdlog::trace("Scheduling compaction");
     this->rocksdb_opt.env->Schedule(& FluidLSMCompactor::CompactFiles, task);
 }

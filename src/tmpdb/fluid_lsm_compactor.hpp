@@ -32,43 +32,44 @@ bool retry_on_fail;
 /**
  * @brief Construct a new Compaction Task object
  * 
- * @param _db
- * @param _compactor
- * @param _column_family_name
- * @param _input_file_names
- * @param _output_level
- * @param _compact_options
- * @param _origin_level_id
- * @param _retry_on_fail
+ * @param db
+ * @param compactor
+ * @param column_family_name
+ * @param input_file_names
+ * @param output_level
+ * @param compact_options
+ * @param origin_level_id
+ * @param retry_on_fail
  */
 CompactionTask(
-    rocksdb::DB * _db, FluidCompactor* _compactor,
-    const std::string& _column_family_name,
-    const std::vector<std::string>& _input_file_names,
-    const int _output_level,
-    const rocksdb::CompactionOptions& _compact_options,
-    const size_t _origin_level_id,
-    bool _retry_on_fail)
-        : db(_db),
-        compactor(_compactor),
-        column_family_name(_column_family_name),
-        input_file_names(_input_file_names),
-        output_level(_output_level),
-        compact_options(_compact_options),
-        origin_level_id(_origin_level_id),
-        retry_on_fail(_retry_on_fail) {}
+    rocksdb::DB * db, FluidCompactor* compactor,
+    const std::string& column_family_name,
+    const std::vector<std::string>& input_file_names,
+    const int output_level,
+    const rocksdb::CompactionOptions& compact_options,
+    const size_t origin_level_id,
+    bool retry_on_fail)
+        : db(db),
+        compactor(compactor),
+        column_family_name(column_family_name),
+        input_file_names(input_file_names),
+        output_level(output_level),
+        compact_options(compact_options),
+        origin_level_id(origin_level_id),
+        retry_on_fail(retry_on_fail) {}
 } CompactionTask;
 
 
 /**
  * @brief Container to represent one single run within the FluidLSM Tree
- * 
  */
 class FluidRun
 {
 public:
     std::vector<rocksdb::SstFileMetaData> files;
+
     std::set<std::string> file_names;
+
     size_t rocksdb_level;
 
     FluidRun(size_t rocksdb_level) : files(), rocksdb_level(rocksdb_level) {};
@@ -112,25 +113,47 @@ public:
     FluidOptions fluid_opt;
     rocksdb::Options rocksdb_opt;
     rocksdb::CompactionOptions rocksdb_compact_opt;
-
     std::mutex level_mutex;
     std::vector<FluidLevel> levels;
 
+
     FluidCompactor(const FluidOptions fluid_opt, const rocksdb::Options rocksdb_opt);
 
-    void init_open_db(rocksdb::DB * db);
-    /** 
-     * Picks and returns a compaction task given the specified DB and column family.
-     * It is the caller's responsibility to destroy the returned CompactionTask.
+    /**
+     * @brief Maps RocksDB files to classic LSM levels
      * 
-     * Returns "nullptr" if it cannot find a proper compaction task.
+     * @param db An open database
+     */
+    void init_open_db(rocksdb::DB * db);
+
+    /** 
+     * @brief Picks and returns a compaction task given the specified DB and column family.
+     * It is the caller's responsibility to destroy the returned CompactionTask.
+     *
+     * @param db An open database
+     * @param cf_name Names of the column families
+     * @param level Target level id
+     *
+     * @returns CompactionTask Will return a "nullptr" if it cannot find a proper compaction task.
      */
     virtual CompactionTask * PickCompaction(rocksdb::DB * db, const std::string & cf_name, const size_t level) = 0;
 
-    // Schedule and run the specified compaction task in background.
+    /**
+     * @brief Schedule and run the specified compaction task in background.
+     * 
+     * @param task 
+     */
     virtual void ScheduleCompaction(CompactionTask * task) = 0;
 
 private:
+    /**
+     * @brief Maps a run of RocksDB to the FluidLSM
+     * 
+     * @param db 
+     * @param file_names 
+     * @param fluid_level 
+     * @param rocksdb_level 
+     */
     void add_run(rocksdb::DB * db, const std::vector<rocksdb::SstFileMetaData> & file_names, size_t fluid_level, size_t rocksdb_level);
 };
 

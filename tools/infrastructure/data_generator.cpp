@@ -21,6 +21,12 @@ DataGenerator::DataGenerator(int seed)
 }
 
 
+std::pair<std::string, std::string> DataGenerator::generate_kv_pair(size_t kv_size)
+{
+    return this->generate_kv_pair(kv_size, "", "");
+}
+
+
 std::pair<std::string, std::string> DataGenerator::generate_kv_pair(
     size_t kv_size,
     const std::string key_prefix,

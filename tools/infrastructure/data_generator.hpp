@@ -24,6 +24,8 @@ public:
 
     virtual std::string generate_val(size_t value_size, const std::string value_prefix) = 0;
 
+    std::pair<std::string, std::string> generate_kv_pair(size_t kv_size);
+
     std::pair<std::string, std::string> generate_kv_pair(
         size_t kv_size,
         const std::string key_prefix,
