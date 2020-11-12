@@ -2,10 +2,12 @@
 
 using namespace tmpdb;
 
+
 bool FluidRun::contains(std::string file_name)
 {
     return this->file_names.count(file_name) == 1;
 }
+
 
 bool FluidRun::add_file(rocksdb::SstFileMetaData file)
 {
@@ -28,6 +30,7 @@ size_t FluidLevel::size() const
     return num_runs;
 }
 
+
 size_t FluidLevel::size_in_bytes() const
 {
     size_t bytes = 0;
@@ -41,6 +44,7 @@ size_t FluidLevel::size_in_bytes() const
 
     return bytes;
 }
+
 
 size_t FluidLevel::num_live_runs()
 {
@@ -57,6 +61,7 @@ size_t FluidLevel::num_live_runs()
 
     return num_live_runs;
 }
+
 
 bool FluidLevel::contains(std::string file_name)
 {
@@ -79,6 +84,7 @@ FluidCompactor::FluidCompactor(const FluidOptions fluid_opt, const rocksdb::Opti
 
     this->levels.resize(this->rocksdb_opt.num_levels);
 }
+
 
 void FluidCompactor::init_open_db(rocksdb::DB * db)
 {
@@ -104,12 +110,14 @@ void FluidCompactor::init_open_db(rocksdb::DB * db)
     {
         file_names.push_back(file);
         this->add_run(db, file_names, 0, 0);
+        spdlog::trace("Added file {} from fluid level {} -> {} rocksdb level", file.name, 0, 0);
         file_names.clear();
     }
 
     for (auto file : cf_meta.levels[1].files)
     {
         file_names.push_back(file);
+        spdlog::trace("Adding file {} from fluid level {} -> {} rocksdb level", file.name, 0, 1);
     }
     this->add_run(db, file_names, 0, 1);
     file_names.clear();
@@ -124,10 +132,12 @@ void FluidCompactor::init_open_db(rocksdb::DB * db)
         for (auto file : current_level.files)
         {
             file_names.push_back(file);
+            spdlog::trace("Adding file {} from fluid level {} -> {} rocksdb level", file.name, fluid_level, current_level.level);
         }
         this->add_run(db, file_names, fluid_level, current_level.level);
     }
 }
+
 
 void FluidCompactor::add_run(rocksdb::DB * db, std::vector<rocksdb::SstFileMetaData> const & file_names, size_t fluid_level, size_t rocksdb_level)
 {
@@ -161,13 +171,12 @@ size_t FluidLSMCompactor::largest_occupied_level() const
     return largest_level;
 }
 
-size_t FluidLSMCompactor::add_files_to_compaction(
-    size_t level_id,
-    std::vector<std::string> & file_names)
+
+size_t FluidLSMCompactor::add_files_to_compaction(size_t level_idx, std::vector<std::string> & file_names)
 {
-    spdlog::trace("Adding files to compact at level {}", level_id);
+    spdlog::trace("Adding files to compact at level {}", level_idx);
     size_t compaction_size_bytes = 0;
-    for(auto & run : this->levels[level_id].runs)
+    for(auto & run : this->levels[level_idx].runs)
     {
         for (auto & file : run.files)
         {
@@ -179,9 +188,9 @@ size_t FluidLSMCompactor::add_files_to_compaction(
         }
     }
 
-    size_t target_level = level_id;
+    size_t target_level = level_idx;
     double T = this->fluid_opt.size_ratio;
-    size_t current_level_capacticty = this->rocksdb_opt.write_buffer_size * std::pow(T, level_id + 1) * (T - 1) / T;
+    size_t current_level_capacticty = this->rocksdb_opt.write_buffer_size * std::pow(T, level_idx + 1) * (T - 1) / T;
     if (compaction_size_bytes > current_level_capacticty)
     {
         target_level += 1;
@@ -190,9 +199,10 @@ size_t FluidLSMCompactor::add_files_to_compaction(
     return target_level;
 }
 
+
 CompactionTask * FluidLSMCompactor::PickCompaction(rocksdb::DB * db, const std::string & cf_name, const size_t level_id)
 {
-    spdlog::trace("Picking compaciton at level {}", level_id);
+    spdlog::trace("Picking compaciton at level {}", 0);
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
 
@@ -205,11 +215,13 @@ CompactionTask * FluidLSMCompactor::PickCompaction(rocksdb::DB * db, const std::
         target_level, this->rocksdb_compact_opt, level_id, false);
 }
 
+
 void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB * db, const ROCKSDB_NAMESPACE::FlushJobInfo & info)
 {
     spdlog::trace("Running flush complete subroutine");
     size_t largest_level = this->largest_occupied_level();
     size_t level_idx;
+    spdlog::trace("Largest level {}", largest_level);
     for (size_t level = 0; level < largest_level; level++)
     {
         level_idx = level - 1;
@@ -218,10 +230,16 @@ void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB * db, const ROCKSDB_NAMESPA
         bool valid_last_level = (level_idx == largest_level && runs > this->fluid_opt.largest_level_run_max);
 
         if (!valid_lower_levels & !valid_last_level) { continue; }
-
+        spdlog::trace("Picking compaction");
         CompactionTask * task = PickCompaction(db, info.cf_name, level_idx);
 
         if (!task) { continue; }
+
+        spdlog::trace("task compact level {} -> {}", task->origin_level_id, task->output_level);
+        for (auto name : task->input_file_names)
+        {
+            spdlog::trace("Compacting file {}", name);
+        }
 
         task->retry_on_fail = info.triggered_writes_stop;
         // Schedule compaction in a different thread.
@@ -229,11 +247,14 @@ void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB * db, const ROCKSDB_NAMESPA
     }
 }
 
+
 void FluidLSMCompactor::CompactFiles(void * arg)
 {
     std::unique_ptr<CompactionTask> task(reinterpret_cast<CompactionTask *>(arg));
     assert(task);
     assert(task->db);
+    assert(task->output_level > (int) task->origin_level_id);
+
     spdlog::trace("Performing compaction rocksdb level {} -> {}", task->origin_level_id, task->output_level);
     std::vector<std::string> * output_file_names = new std::vector<std::string>();
     rocksdb::Status s = task->db->CompactFiles(
@@ -244,7 +265,6 @@ void FluidLSMCompactor::CompactFiles(void * arg)
         output_file_names
     );
 
-    assert(task->output_level > (int) task->origin_level_id);
     spdlog::trace("CompactFiles() finished with status: {}", s.ToString());
     if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
     {
@@ -256,8 +276,22 @@ void FluidLSMCompactor::CompactFiles(void * arg)
     }
 }
 
+
 void FluidLSMCompactor::ScheduleCompaction(CompactionTask * task)
 {
     spdlog::trace("Scheduling compaction");
     this->rocksdb_opt.env->Schedule(& FluidLSMCompactor::CompactFiles, task);
+}
+
+size_t FluidLSMCompactor::estimate_levels(size_t N, double T, size_t E, size_t B)
+{
+    size_t total_required_memory = N * E;
+    if (total_required_memory < B)
+    {
+        spdlog::warn("Number of entries (N = {}) fits in the in-memory buffer, defaulting to 1 level", N);
+        return 1;
+    }
+    size_t estimated_levels = std::ceil(std::log((total_required_memory * (T - 1)) / (B * T)) / std::log(T));
+
+    return estimated_levels;
 }

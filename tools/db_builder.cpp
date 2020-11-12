@@ -9,30 +9,27 @@
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
 
-
 typedef enum { BUILD, EXECUTE } cmd_mode;
-
-typedef enum { ENTRIES, LEVELS } build_mode;
 
 typedef struct
 {
     std::string db_path;
-    build_mode build_fill;
+    tmpdb::bulk_load_type bulk_load_mode;
 
     // Build mode
     double T = 2;
     double K = 1;
     double Z = 1;
-    size_t B = 1048576;
-    size_t E = 8192;
+    size_t B = 1 << 20; //> 1 MiB
+    size_t E = 1 << 10; //> 1 KiB
     double bits_per_element = 5.0;
     size_t N = 1e6;
-    size_t L = 1;
+    size_t L = 0;
 
     int verbose = 0;
     bool destroy_db = false;
 
-    int max_rocksdb_levels = 100;
+    int max_rocksdb_levels = 10;
     int parallelism = 1;
 
     int seed = std::time(nullptr); 
@@ -75,9 +72,9 @@ environment parse_args(int argc, char * argv[])
         ),
         "db fill options (pick one):" % (
             one_of(
-                (option("-N", "--entries").set(env.build_fill, build_mode::ENTRIES) & integer("num", env.N))
+                (option("-N", "--entries").set(env.bulk_load_mode, tmpdb::bulk_load_type::ENTRIES) & integer("num", env.N))
                     % ("total entries, default pick [default: " + to_string(env.N) + "]"),
-                (option("-L", "--levels").set(env.build_fill, build_mode::LEVELS) & integer("num", env.L)) 
+                (option("-L", "--levels").set(env.bulk_load_mode, tmpdb::bulk_load_type::LEVELS) & integer("num", env.L)) 
                     % ("total filled levels [default: " + to_string(env.L) + "]")
             )
         )
@@ -128,6 +125,18 @@ void fill_fluid_opt(environment env, tmpdb::FluidOptions & fluid_opt)
     fluid_opt.buffer_size = env.B;
     fluid_opt.entry_size = env.E;
     fluid_opt.bits_per_element = env.bits_per_element;
+    fluid_opt.bulk_load_opt = env.bulk_load_mode;
+    if (fluid_opt.bulk_load_opt == tmpdb::bulk_load_type::ENTRIES)
+    {
+        fluid_opt.num_entries = env.N;
+        fluid_opt.levels = tmpdb::FluidLSMCompactor::estimate_levels(env.N, env.T, env.E, env.B);
+    }
+    else
+    {
+        fluid_opt.levels = env.L;
+        // TODO: Calculate N based on levels
+    }
+    
 }
 
 
@@ -162,14 +171,37 @@ void build_db(environment & env)
     }
 
     fluid_compactor->init_open_db(db);
-    status = fluid_compactor->bulk_load_entries(db, env.N);
-    spdlog::info("Finished building");
+    if (env.bulk_load_mode == tmpdb::bulk_load_type::ENTRIES)
+    {
+        status = fluid_compactor->bulk_load_entries(db, env.N);
+        spdlog::info("Finished bulk loading ENTRIES");
+    }
 
     if (!status.ok())
     {
         spdlog::error("Problems bulk loading: {}", status.ToString());
         delete db;
         exit(EXIT_FAILURE);
+    }
+
+    if (spdlog::get_level() <= spdlog::level::debug)
+    {
+        spdlog::debug("Files per level");
+        rocksdb::ColumnFamilyMetaData cf_meta;
+        db->GetColumnFamilyMetaData(&cf_meta);
+        std::vector<std::string> file_names;
+        int level_idx = 0;
+        for (auto & level : cf_meta.levels)
+        {
+            std::string level_str = "Level " + std::to_string(level_idx) + " :";
+            for (auto & file : level.files)
+            {
+                level_str += file.name + ", ";
+            }
+            level_str = level_str.substr(0, level_str.size() - 2);
+            spdlog::debug("{}", level_str);
+            level_idx++;
+        }
     }
 
     fluid_opt.write_config(env.db_path + "/fluid_config.json");

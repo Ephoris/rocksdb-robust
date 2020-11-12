@@ -17,7 +17,7 @@ typedef struct
     size_t empty_reads = 0;
     size_t writes = 0;
 
-    int rocksdb_max_levels = 100;
+    int rocksdb_max_levels = 10;
     int parallelism = 1;
 
     int compaction_readahead_size = 64;
@@ -88,14 +88,13 @@ rocksdb::Status run_random_inserts(environment env)
     rocksdb_opt.compression = rocksdb::kNoCompression;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
-    // rocksdb_opt.write_buffer_size = fluid_opt.buffer_size;
-    // rocksdb_opt.num_levels = env.rocksdb_max_levels;
-    // rocksdb_opt.compaction_readahead_size = 1024 * env.compaction_readahead_size;
-    // rocksdb_opt.use_direct_reads = true;
-    // rocksdb_opt.allow_mmap_writes = false;
+    rocksdb_opt.write_buffer_size = fluid_opt.buffer_size;
+    rocksdb_opt.num_levels = env.rocksdb_max_levels;
+    rocksdb_opt.compaction_readahead_size = 1024 * env.compaction_readahead_size;
     // rocksdb_opt.new_table_reader_for_compaction_inputs = true;
     // rocksdb_opt.writable_file_max_buffer_size = 2 * rocksdb_opt.compaction_readahead_size;
     // rocksdb_opt.use_direct_io_for_flush_and_compaction = true;
+    // rocksdb_opt.use_direct_reads = true;
     // rocksdb_opt.allow_mmap_reads = false;
     // rocksdb_opt.allow_mmap_writes = false;
 
@@ -115,19 +114,18 @@ rocksdb::Status run_random_inserts(environment env)
     }
     fluid_compactor->init_open_db(db);
 
-    // rocksdb::WriteOptions write_opt;
-    // write_opt.sync = false; //make every write wait for sync with log (so we see real perf impact of insert)
-    // write_opt.low_pri = true; // every insert is less important than compaction
-    // write_opt.disableWAL = false; 
-    // write_opt.no_slowdown = false; // enabling this will make some insertions fail
+    rocksdb::WriteOptions write_opt;
+    write_opt.sync = false; //make every write wait for sync with log (so we see real perf impact of insert)
+    write_opt.low_pri = true; // every insert is less important than compaction
+    write_opt.disableWAL = false; 
+    write_opt.no_slowdown = false; // enabling this will make some insertions fail
 
     spdlog::info("Writing {} key-value pairs", env.writes);
     RandomGenerator data_gen = RandomGenerator(env.seed);
     for (size_t write_idx = 0; write_idx < env.writes; write_idx++)
     {
         std::pair<std::string, std::string> entry = data_gen.generate_kv_pair(fluid_opt.entry_size);
-        status = db->Put(rocksdb::WriteOptions(), entry.first, entry.second);
-        spdlog::trace("Finished write {}", write_idx);
+        status = db->Put(write_opt, entry.first, entry.second);
         if (!status.ok())
         {
             spdlog::warn("Unable to put key {}", write_idx);
@@ -135,9 +133,9 @@ rocksdb::Status run_random_inserts(environment env)
         }
     }
 
-    rocksdb::FlushOptions flush_opt;
-    flush_opt.wait = true;
-    db->Flush(flush_opt);
+    // rocksdb::FlushOptions flush_opt;
+    // flush_opt.wait = true;
+    // db->Flush(flush_opt);
 
     db->Close();
     delete db;
@@ -154,6 +152,7 @@ int main(int argc, char * argv[])
     environment env = parse_args(argc, argv);
 
     spdlog::info("Welcome to the db_runner");
+    spdlog::info("Welcome to db_builder!");
     if(env.verbose == 1)
     {
         spdlog::info("Log level: DEBUG");

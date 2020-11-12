@@ -113,9 +113,7 @@ public:
     FluidOptions fluid_opt;
     rocksdb::Options rocksdb_opt;
     rocksdb::CompactionOptions rocksdb_compact_opt;
-    std::mutex level_mutex;
     std::vector<FluidLevel> levels;
-
 
     FluidCompactor(const FluidOptions fluid_opt, const rocksdb::Options rocksdb_opt);
 
@@ -185,7 +183,6 @@ public:
      */
     static size_t estimate_levels(size_t N, double T, size_t E, size_t B);
 
-private:
     /**
      * @brief Adds all file names eligible for compaction to file_names
      * 

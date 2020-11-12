@@ -3,10 +3,12 @@
 using namespace tmpdb;
 using json = nlohmann::json;
 
+
 FluidOptions::FluidOptions(std::string config_path)
 {
     this->read_config(config_path);
 }
+
 
 bool FluidOptions::read_config(std::string config_path)
 {
@@ -26,9 +28,13 @@ bool FluidOptions::read_config(std::string config_path)
     this->buffer_size = cfg["buffer_size"];
     this->entry_size = cfg["entry_size"];
     this->bits_per_element = cfg["bits_per_element"];
+    this->bulk_load_opt = cfg["bulk_load_opt"];
+    this->num_entries = cfg["num_entries"];
+    this->levels = cfg["levels"];
 
     return true;
 }
+
 
 bool FluidOptions::write_config(std::string config_path)
 {
@@ -39,6 +45,9 @@ bool FluidOptions::write_config(std::string config_path)
     cfg["buffer_size"] = this->buffer_size;
     cfg["entry_size"] = this->entry_size;
     cfg["bits_per_element"] = this->bits_per_element;
+    cfg["bulk_load_opt"] = this->bulk_load_opt;
+    cfg["levels"] = this->levels;
+    cfg["num_entries"] = this->num_entries;
 
     std::ofstream out_cfg(config_path);
     if (!out_cfg.is_open())
@@ -46,9 +55,9 @@ bool FluidOptions::write_config(std::string config_path)
         spdlog::error("Unable to create or open file: {}", config_path);
         return false;
     }
-    spdlog::trace("Dumping configuration file at {}", config_path);
     out_cfg << cfg.dump(4) << std::endl;
     out_cfg.close();
+    spdlog::info("Writing configuration file at {}", config_path);
 
     return true;
 }
