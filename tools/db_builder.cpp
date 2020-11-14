@@ -149,7 +149,9 @@ void build_db(environment & env)
     rocksdb_opt.create_if_missing = true;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt.compression = rocksdb::kNoCompression;
+    rocksdb_opt.target_file_size_multiplier = (int) env.T;
     rocksdb_opt.error_if_exists = true;
+    rocksdb_opt.write_buffer_size = env.B << 4; //> Bulk loading so we'll just increase write buffer size
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     rocksdb_opt.PrepareForBulkLoad();
@@ -171,10 +173,13 @@ void build_db(environment & env)
     }
 
     fluid_compactor->init_open_db(db);
-    if (env.bulk_load_mode == tmpdb::bulk_load_type::ENTRIES)
+    if (env.bulk_load_mode == tmpdb::bulk_load_type::LEVELS)
+    {
+        status = fluid_compactor->bulk_load_levels(db, env.L);
+    }
+    else
     {
         status = fluid_compactor->bulk_load_entries(db, env.N);
-        spdlog::info("Finished bulk loading ENTRIES");
     }
 
     if (!status.ok())
@@ -190,7 +195,7 @@ void build_db(environment & env)
         rocksdb::ColumnFamilyMetaData cf_meta;
         db->GetColumnFamilyMetaData(&cf_meta);
         std::vector<std::string> file_names;
-        int level_idx = 0;
+        int level_idx = 1;
         for (auto & level : cf_meta.levels)
         {
             std::string level_str = "Level " + std::to_string(level_idx) + " :";

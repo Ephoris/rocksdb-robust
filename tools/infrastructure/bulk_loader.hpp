@@ -19,12 +19,13 @@ public:
         : FluidLSMCompactor(fluid_opt, rocksdb_opt), data_gen(&data_gen) {};
 
     rocksdb::Status bulk_load_entries(rocksdb::DB * db, size_t num_entries);
-    // rocksdb::Status bulk_load_levels(rocksdb::DB * db, size_t levels);
+
+    rocksdb::Status bulk_load_levels(rocksdb::DB * db, size_t num_levels);
 
     // Override both compaction events to prevent any compactions during bulk loading
     void OnFlushCompleted(rocksdb::DB * /* db */, const ROCKSDB_NAMESPACE::FlushJobInfo & /* info */) override {};
-    tmpdb::CompactionTask * PickCompaction(rocksdb::DB * /* db */, const std::string & /* cf_name */, const size_t /* level */) override { spdlog::trace("Picking compaction"); return nullptr;};
 
+    tmpdb::CompactionTask * PickCompaction(rocksdb::DB * /* db */, const std::string & /* cf_name */, const size_t /* level */) override { spdlog::trace("Picking compaction"); return nullptr;};
 
 private:
     DataGenerator * data_gen;

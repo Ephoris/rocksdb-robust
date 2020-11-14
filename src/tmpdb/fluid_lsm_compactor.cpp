@@ -265,12 +265,13 @@ void FluidLSMCompactor::CompactFiles(void * arg)
         output_file_names
     );
 
-    spdlog::trace("CompactFiles() finished with status: {}", s.ToString());
+    spdlog::debug("CompactFiles() finished with status: {}", s.ToString());
     if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
     {
         // If a compaction task with its retry_on_fail=true failed,
         // try to schedule another compaction in case the reason
         // is not an IO error.
+        spdlog::warn("CompactFile() did not finish, rescheduling.");
         CompactionTask * new_task = task->compactor->PickCompaction(task->db, task->column_family_name, task->origin_level_id);
         task->compactor->ScheduleCompaction(new_task);
     }
@@ -283,15 +284,16 @@ void FluidLSMCompactor::ScheduleCompaction(CompactionTask * task)
     this->rocksdb_opt.env->Schedule(& FluidLSMCompactor::CompactFiles, task);
 }
 
+
 size_t FluidLSMCompactor::estimate_levels(size_t N, double T, size_t E, size_t B)
 {
-    size_t total_required_memory = N * E;
-    if (total_required_memory < B)
+    if ((N * E) < B)
     {
         spdlog::warn("Number of entries (N = {}) fits in the in-memory buffer, defaulting to 1 level", N);
         return 1;
     }
-    size_t estimated_levels = std::ceil(std::log((total_required_memory * (T - 1)) / (B * T)) / std::log(T));
+
+    size_t estimated_levels = std::ceil(std::log(((N * E) / B) + T) / std::log(T));
 
     return estimated_levels;
 }

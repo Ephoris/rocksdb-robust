@@ -9,64 +9,97 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_entries(rocksdb::DB * db, size_t n
     size_t E = this->fluid_opt.entry_size;
     size_t B = this->fluid_opt.buffer_size;
     double T = this->fluid_opt.size_ratio;
-    // double K = this->fluid_opt.lower_level_run_max;
-    // double Z = this->fluid_opt.largest_level_run_max;
     size_t estimated_levels = tmpdb::FluidLSMCompactor::estimate_levels(num_entries, T, E, B);
     spdlog::debug("Estimated levels: {}", estimated_levels);
 
     size_t entries_in_buffer = (B / E);
     spdlog::debug("Number of entries that can fit in the buffer: {}", entries_in_buffer);
 
-    std::vector<size_t> entries_per_level_per_run(estimated_levels);
-
-    // size_t current_level_size = (B / E) * std::pow((T / K), estimated_levels - 2) * (T / Z);
-    size_t current_level_size = (num_entries * (T - 1) / T) / (this->fluid_opt.lower_level_run_max);
-    spdlog::debug("Lowest level ({}) size: {}", estimated_levels, current_level_size);
-
-    size_t level_idx;
-    for (size_t level = estimated_levels; level > 0; level--)
+    std::vector<size_t> capacity_per_level(estimated_levels);
+    capacity_per_level[0] = entries_in_buffer;
+    for (size_t level_idx = 1; level_idx < estimated_levels; level_idx++)
     {
-        level_idx = level - 1;
-        entries_per_level_per_run[level_idx] = current_level_size;
-        current_level_size /= T;
-
-        if (level_idx == 0 && entries_per_level_per_run[level_idx] < entries_in_buffer)
-        {
-            spdlog::info("Top level entries per level per run is smaller than possible entries in buffer ({} < {}). Changing to {}.",
-                entries_per_level_per_run[level_idx], entries_in_buffer, entries_in_buffer);
-            entries_per_level_per_run[level_idx] = entries_in_buffer;
-        }
+        capacity_per_level[level_idx] = capacity_per_level[level_idx - 1] * T;
     }
-    status = this->bulk_load(db, entries_per_level_per_run, estimated_levels);
 
     if (spdlog::get_level() <= spdlog::level::debug)
     {
-        std::string entries_per_level_str = "";
-        for (auto & entries : entries_per_level_per_run)
+        std::string capacity_str = "";
+        for (auto & capacity : capacity_per_level)
         {
-            entries_per_level_str += std::to_string((int) (entries * this->fluid_opt.lower_level_run_max)) + ", ";
+            capacity_str += std::to_string(capacity) + ", ";
         }
-        entries_per_level_str = entries_per_level_str.substr(0, entries_per_level_str.size() - 2);
-        spdlog::debug("Entries per level per run: [{}]", entries_per_level_str);
+        capacity_str = capacity_str.substr(0, capacity_str.size() - 2);
+        spdlog::debug("Capcaity per level : [{}]", capacity_str);
     }
+
+    status = this->bulk_load(db, capacity_per_level, estimated_levels);
 
     return status;
 }
 
 
-rocksdb::Status FluidLSMBulkLoader::bulk_load(rocksdb::DB * db, std::vector<size_t> entries_per_level_per_run, size_t num_levels)
+rocksdb::Status FluidLSMBulkLoader::bulk_load_levels(rocksdb::DB * db, size_t num_levels)
+{
+    spdlog::info("Bulk loading DB with {} levels", num_levels);
+    rocksdb::Status status;
+
+    size_t E = this->fluid_opt.entry_size;
+    size_t B = this->fluid_opt.buffer_size;
+    double T = this->fluid_opt.size_ratio;
+    size_t entries_in_buffer = (B / E);
+    spdlog::debug("Number of entries that can fit in the buffer: {}", entries_in_buffer);
+
+    std::vector<size_t> capacity_per_level(num_levels);
+    capacity_per_level[0] = entries_in_buffer;
+    for (size_t level_idx = 1; level_idx < num_levels; level_idx++)
+    {
+        capacity_per_level[level_idx] = capacity_per_level[level_idx - 1] * T;
+    }
+
+    if (spdlog::get_level() <= spdlog::level::debug)
+    {
+        std::string capacity_str = "";
+        for (auto & capacity : capacity_per_level)
+        {
+            capacity_str += std::to_string(capacity) + ", ";
+        }
+        capacity_str = capacity_str.substr(0, capacity_str.size() - 2);
+        spdlog::debug("Capcaity per level : [{}]", capacity_str);
+    }
+
+    status = this->bulk_load(db, capacity_per_level, num_levels);
+
+    return status;
+}
+
+
+rocksdb::Status FluidLSMBulkLoader::bulk_load(rocksdb::DB * db, std::vector<size_t> capacity_per_level, size_t num_levels)
 {
     rocksdb::Status status;
     size_t level_idx;
+    size_t num_runs;
+
     for (size_t level = num_levels; level > 0; level--)
     {
         level_idx = level - 1;
-        if (entries_per_level_per_run[level_idx] == 0) { continue; }
-        spdlog::debug("Bulk loading level {} with {} entries",
-            level_idx, entries_per_level_per_run[level_idx] * (int) this->fluid_opt.lower_level_run_max);
-        status = this->bulk_load_single_level(db, level_idx,
-                                              entries_per_level_per_run[level_idx],
-                                              this->fluid_opt.lower_level_run_max);
+        if (capacity_per_level[level_idx] == 0) { continue; }
+        spdlog::debug("Bulk loading level {} with {} entries.", level_idx, capacity_per_level[level_idx]);
+
+        if (level_idx == 0)
+        {
+            num_runs = this->fluid_opt.size_ratio;
+        }
+        else if (level_idx == num_levels - 1)
+        {
+            num_runs = this->fluid_opt.largest_level_run_max;
+        }
+        else
+        {
+            num_runs = this->fluid_opt.lower_level_run_max;
+        }
+
+        status = this->bulk_load_single_level(db, level_idx, capacity_per_level[level_idx], num_runs);
     }
 
     return status;
@@ -76,15 +109,17 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load(rocksdb::DB * db, std::vector<size
 rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
     rocksdb::DB *db,
     size_t level_idx,
-    size_t num_entries_per_run,
+    size_t capacity_per_level,
     size_t num_runs)
 {
     rocksdb::Status status;
+    size_t entries_per_run = capacity_per_level / num_runs;
+
     for (size_t run_idx = 0; run_idx < num_runs; run_idx++)
     {
         spdlog::trace("Loading run {} at level {} with {} entries (file size ~ {} KB)",
-            run_idx, level_idx, num_entries_per_run, (num_entries_per_run * this->fluid_opt.entry_size) >> 10);
-        status = this->bulk_load_single_run(db, level_idx, num_entries_per_run);
+            run_idx, level_idx, entries_per_run, (entries_per_run * this->fluid_opt.entry_size) >> 10);
+        status = this->bulk_load_single_run(db, level_idx, entries_per_run);
     }
 
     return status;
