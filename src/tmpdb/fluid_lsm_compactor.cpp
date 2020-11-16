@@ -267,6 +267,7 @@ void FluidLSMCompactor::CompactFiles(void * arg)
         output_file_names
     );
 
+    // spdlog::trace("CompactFiles({} -> {}) finished with status: {}", task->origin_level_id, task->output_level, s.ToString());
     if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
     {
         // If a compaction task with its retry_on_fail=true failed,
@@ -285,13 +286,17 @@ void FluidLSMCompactor::CompactFiles(void * arg)
             task->retry_on_fail
         );
         task->compactor->ScheduleCompaction(new_task);
+
+        return;
     }
+
+    return;
 }
 
 
 void FluidLSMCompactor::ScheduleCompaction(CompactionTask * task)
 {
-    this->rocksdb_opt.env->Schedule(& FluidLSMCompactor::CompactFiles, task);
+    this->rocksdb_opt.env->Schedule(&FluidLSMCompactor::CompactFiles, task);
 }
 
 

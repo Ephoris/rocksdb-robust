@@ -141,27 +141,27 @@ void fill_fluid_opt(environment env, tmpdb::FluidOptions &fluid_opt)
 void build_db(environment & env)
 {
     spdlog::info("Building DB: {}", env.db_path);
-    rocksdb::Options rocksdb_opt;
+    rocksdb::Options * rocksdb_opt = new rocksdb::Options();
     tmpdb::FluidOptions fluid_opt;
 
-    rocksdb_opt.create_if_missing = true;
-    rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
-    rocksdb_opt.compression = rocksdb::kNoCompression;
-    rocksdb_opt.target_file_size_multiplier = (int) env.T;
-    rocksdb_opt.error_if_exists = true;
-    rocksdb_opt.write_buffer_size = env.B << 4; //> Bulk loading so we'll just increase write buffer size
-    rocksdb_opt.IncreaseParallelism(env.parallelism);
+    rocksdb_opt->create_if_missing = true;
+    rocksdb_opt->error_if_exists = true;
+    rocksdb_opt->compaction_style = rocksdb::kCompactionStyleNone;
+    rocksdb_opt->compression = rocksdb::kNoCompression;
+    rocksdb_opt->IncreaseParallelism(env.parallelism);
 
-    rocksdb_opt.PrepareForBulkLoad();
-    rocksdb_opt.num_levels = env.max_rocksdb_levels;
+    rocksdb_opt->disable_auto_compactions = true;
+    rocksdb_opt->write_buffer_size = env.B; 
+    rocksdb_opt->num_levels = env.max_rocksdb_levels;
 
     fill_fluid_opt(env, fluid_opt);
     RandomGenerator gen = RandomGenerator(env.seed);
-    FluidLSMBulkLoader * fluid_compactor = new FluidLSMBulkLoader(gen, fluid_opt, rocksdb_opt);
-    rocksdb_opt.listeners.emplace_back(fluid_compactor);
+    FluidLSMBulkLoader * fluid_compactor = new FluidLSMBulkLoader(gen, fluid_opt, *rocksdb_opt);
+    rocksdb_opt->listeners.emplace_back(fluid_compactor);
 
     rocksdb::DB * db = nullptr;
-    rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
+    rocksdb::Status status = rocksdb::DB::Open(*rocksdb_opt, env.db_path, &db);
+    // db->SetOptions({{"target_file_size_multiplier", "10"}});
     if (!status.ok())
     {
         spdlog::error("Problems opening DB");
@@ -187,11 +187,22 @@ void build_db(environment & env)
         exit(EXIT_FAILURE);
     }
 
+    spdlog::info("Waiting for all compactions to finish before closing");
+    rocksdb::ColumnFamilyMetaData cf_meta;
+    db->GetColumnFamilyMetaData(&cf_meta);
+    // > Wait for all compactions to finish before flushing and closing DB
+    for (auto & level : cf_meta.levels)
+    {
+        for (auto & file : level.files)
+        {
+            while (file.being_compacted);
+        }
+    }
+
     if (spdlog::get_level() <= spdlog::level::debug)
     {
         spdlog::debug("Files per level");
-        rocksdb::ColumnFamilyMetaData cf_meta;
-        db->GetColumnFamilyMetaData(&cf_meta);
+
         std::vector<std::string> file_names;
         int level_idx = 1;
         for (auto & level : cf_meta.levels)
@@ -209,8 +220,10 @@ void build_db(environment & env)
 
     fluid_opt.write_config(env.db_path + "/fluid_config.json");
 
+
     db->Close();
     delete db;
+    delete rocksdb_opt;
 }
 
 

@@ -32,11 +32,11 @@ public:
 private:
     DataGenerator * data_gen;
 
-    rocksdb::Status bulk_load(rocksdb::DB * db, std::vector<size_t> entries_per_level, size_t num_levels);
+    rocksdb::Status bulk_load(rocksdb::DB * db, std::vector<size_t> entries_per_level, size_t num_levels, size_t max_entries);
 
     rocksdb::Status bulk_load_single_level(rocksdb::DB * db, size_t level_idx, size_t num_entries, size_t num_runs);
 
-    rocksdb::Status bulk_load_single_run(rocksdb::DB * db, size_t level_idx, size_t target_idx, size_t num_entries);
+    rocksdb::Status bulk_load_single_run(rocksdb::DB * db, size_t level_idx, size_t num_entries);
 };
 
 #endif /*  BULK_LOADER_H_ */

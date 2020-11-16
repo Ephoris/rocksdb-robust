@@ -159,6 +159,10 @@ private:
 class FluidLSMCompactor : public FluidCompactor
 {
 public:
+    std::mutex compactions_left_mutex;
+    int compactions_left_count = 0;
+    int compactions_failed_count = 0;
+
     FluidLSMCompactor(const FluidOptions fluid_opt, const rocksdb::Options rocksdb_opt)
         : FluidCompactor(fluid_opt, rocksdb_opt) {};
 
