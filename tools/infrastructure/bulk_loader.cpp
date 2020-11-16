@@ -16,7 +16,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_entries(rocksdb::DB * db, size_t n
     spdlog::debug("Number of entries that can fit in the buffer: {}", entries_in_buffer);
 
     std::vector<size_t> capacity_per_level(estimated_levels);
-    capacity_per_level[0] = entries_in_buffer;
+    capacity_per_level[0] = (entries_in_buffer) * (T - 1);
     for (size_t level_idx = 1; level_idx < estimated_levels; level_idx++)
     {
         capacity_per_level[level_idx] = capacity_per_level[level_idx - 1] * T;
