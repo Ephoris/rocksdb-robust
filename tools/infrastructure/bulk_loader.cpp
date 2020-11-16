@@ -88,13 +88,13 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load(rocksdb::DB * db, std::vector<size
 
         if (level_idx == 0)
         {
-            num_runs = this->fluid_opt.size_ratio;
+            num_runs = this->fluid_opt.size_ratio - 1;
         }
-        else if (level_idx == num_levels - 1)
+        else if (level == num_levels) //> Last level has Z max runs
         {
             num_runs = this->fluid_opt.largest_level_run_max;
         }
-        else
+        else //> Every other level inbetween has K max runs
         {
             num_runs = this->fluid_opt.lower_level_run_max;
         }
@@ -114,19 +114,22 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
 {
     rocksdb::Status status;
     size_t entries_per_run = capacity_per_level / num_runs;
+    // We must go backwards given RocksDB interal compaction
+    size_t level_end_idx = this->fluid_level_to_rocksdb_start_idx(level_idx + 1) + num_runs - 1;
 
     for (size_t run_idx = 0; run_idx < num_runs; run_idx++)
     {
         spdlog::trace("Loading run {} at level {} with {} entries (file size ~ {} KB)",
-            run_idx, level_idx, entries_per_run, (entries_per_run * this->fluid_opt.entry_size) >> 10);
-        status = this->bulk_load_single_run(db, level_idx, entries_per_run);
+            run_idx, level_idx + 1, entries_per_run, (entries_per_run * this->fluid_opt.entry_size) >> 10);
+
+        status = this->bulk_load_single_run(db, level_idx, level_end_idx - run_idx, entries_per_run);
     }
 
     return status;
 }
 
 
-rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB * db, size_t level_idx, size_t num_entries)
+rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB * db, size_t level_idx, size_t target_idx, size_t num_entries)
 {
     rocksdb::WriteOptions write_opt;
     write_opt.sync = false;
@@ -146,7 +149,8 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB * db, size_
         rocksdb::WriteBatch batch;
         for (int i = 0; i < (int) batch_size; i++)
         {
-            std::pair<std::string, std::string> key_value = this->data_gen->generate_kv_pair(this->fluid_opt.entry_size, key_prefix, value_prefix);
+            std::pair<std::string, std::string> key_value =
+                this->data_gen->generate_kv_pair(this->fluid_opt.entry_size, key_prefix, value_prefix);
             batch.Put(key_value.first, key_value.second);
         }
         status = db->Write(write_opt, &batch);
@@ -166,16 +170,28 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB * db, size_
     }
 
     // Force all runs in this level to be mapped to their respective level
-    spdlog::trace("Force compacting run to level idx {}", level_idx);
+    spdlog::trace("FluidLSM Level -> RocksDB Level : {} -> {}", level_idx + 1, target_idx);
+
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
+
     std::vector<std::string> file_names;
     for (auto & file : cf_meta.levels[0].files)
     {
         if (file.being_compacted) { continue; }
         file_names.push_back(file.name);
     }
-    tmpdb::CompactionTask *task = new tmpdb::CompactionTask(db, this, "default", file_names, level_idx, this->rocksdb_compact_opt, 0, false);
+
+    tmpdb::CompactionTask *task = new tmpdb::CompactionTask(
+        db,
+        this,
+        "default",
+        file_names,
+        target_idx,
+        this->rocksdb_compact_opt,
+        0,
+        true);
+
     this->ScheduleCompaction(task);
 
     return status;

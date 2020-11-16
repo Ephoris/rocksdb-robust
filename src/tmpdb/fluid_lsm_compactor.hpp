@@ -191,6 +191,8 @@ public:
      * @return size_t Target level for compaction
      */
     size_t add_files_to_compaction(size_t level_id, std::vector<std::string> & file_names);
+
+    size_t fluid_level_to_rocksdb_start_idx(size_t fluid_level);
 };
 
 

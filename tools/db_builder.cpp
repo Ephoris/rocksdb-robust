@@ -9,8 +9,6 @@
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
 
-typedef enum { BUILD, EXECUTE } cmd_mode;
-
 typedef struct
 {
     std::string db_path;
@@ -82,7 +80,7 @@ environment parse_args(int argc, char * argv[])
 
     auto minor_opt = (
         "minor options:" % (
-            (option("--max_rocksdb-level") & integer("num", env.max_rocksdb_levels))
+            (option("--max_rocksdb_level") & integer("num", env.max_rocksdb_levels))
                 % ("limits the maximum levels rocksdb has [default: " + to_string(env.max_rocksdb_levels) + "]"),
             (option("--parallelism") & integer("num", env.parallelism))
                 % ("parallelism for writing to db [default: " + to_string(env.parallelism) + "]"),
@@ -117,7 +115,7 @@ environment parse_args(int argc, char * argv[])
 }
 
 
-void fill_fluid_opt(environment env, tmpdb::FluidOptions & fluid_opt)
+void fill_fluid_opt(environment env, tmpdb::FluidOptions &fluid_opt)
 {
     fluid_opt.size_ratio = env.T;
     fluid_opt.largest_level_run_max = env.Z;

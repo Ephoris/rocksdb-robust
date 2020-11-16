@@ -25,7 +25,9 @@ public:
     // Override both compaction events to prevent any compactions during bulk loading
     void OnFlushCompleted(rocksdb::DB * /* db */, const ROCKSDB_NAMESPACE::FlushJobInfo & /* info */) override {};
 
-    tmpdb::CompactionTask * PickCompaction(rocksdb::DB * /* db */, const std::string & /* cf_name */, const size_t /* level */) override { spdlog::trace("Picking compaction"); return nullptr;};
+    tmpdb::CompactionTask * PickCompaction(rocksdb::DB * /* db */,
+                                           const std::string & /* cf_name */,
+                                           const size_t /* level */) override {return nullptr;};
 
 private:
     DataGenerator * data_gen;
@@ -34,7 +36,7 @@ private:
 
     rocksdb::Status bulk_load_single_level(rocksdb::DB * db, size_t level_idx, size_t num_entries, size_t num_runs);
 
-    rocksdb::Status bulk_load_single_run(rocksdb::DB * db, size_t level_idx, size_t num_entries);
+    rocksdb::Status bulk_load_single_run(rocksdb::DB * db, size_t level_idx, size_t target_idx, size_t num_entries);
 };
 
 #endif /*  BULK_LOADER_H_ */

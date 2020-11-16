@@ -139,11 +139,14 @@ void FluidCompactor::init_open_db(rocksdb::DB * db)
 }
 
 
-void FluidCompactor::add_run(rocksdb::DB * db, std::vector<rocksdb::SstFileMetaData> const & file_names, size_t fluid_level, size_t rocksdb_level)
+void FluidCompactor::add_run(
+    rocksdb::DB * db,
+    std::vector<rocksdb::SstFileMetaData> const & file_names,
+    size_t fluid_level,
+    size_t rocksdb_level)
 {
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
-    // spdlog::trace("Adding run at level (Fluid -> RocksDB) : ({}, {})", fluid_level, rocksdb_level);
 
     FluidRun run(rocksdb_level);
     for (rocksdb::SstFileMetaData file : file_names)
@@ -255,7 +258,6 @@ void FluidLSMCompactor::CompactFiles(void * arg)
     assert(task->db);
     assert(task->output_level > (int) task->origin_level_id);
 
-    spdlog::trace("Performing compaction rocksdb level {} -> {}", task->origin_level_id, task->output_level);
     std::vector<std::string> * output_file_names = new std::vector<std::string>();
     rocksdb::Status s = task->db->CompactFiles(
         task->compact_options,
@@ -265,14 +267,23 @@ void FluidLSMCompactor::CompactFiles(void * arg)
         output_file_names
     );
 
-    spdlog::debug("CompactFiles() finished with status: {}", s.ToString());
     if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
     {
         // If a compaction task with its retry_on_fail=true failed,
         // try to schedule another compaction in case the reason
         // is not an IO error.
-        spdlog::warn("CompactFile() did not finish, rescheduling.");
-        CompactionTask * new_task = task->compactor->PickCompaction(task->db, task->column_family_name, task->origin_level_id);
+
+        // spdlog::warn("CompactFile() did not finish, rescheduling.");
+        CompactionTask * new_task = new CompactionTask(
+            task->db,
+            task->compactor,
+            task->column_family_name,
+            task->input_file_names,
+            task->output_level,
+            task->compact_options,
+            task->origin_level_id,
+            task->retry_on_fail
+        );
         task->compactor->ScheduleCompaction(new_task);
     }
 }
@@ -280,7 +291,6 @@ void FluidLSMCompactor::CompactFiles(void * arg)
 
 void FluidLSMCompactor::ScheduleCompaction(CompactionTask * task)
 {
-    spdlog::trace("Scheduling compaction");
     this->rocksdb_opt.env->Schedule(& FluidLSMCompactor::CompactFiles, task);
 }
 
@@ -296,4 +306,18 @@ size_t FluidLSMCompactor::estimate_levels(size_t N, double T, size_t E, size_t B
     size_t estimated_levels = std::ceil(std::log(((N * E) / B) + T) / std::log(T));
 
     return estimated_levels;
+}
+
+
+size_t FluidLSMCompactor::fluid_level_to_rocksdb_start_idx(size_t fluid_level)
+{
+    if (fluid_level == 1)
+    {
+        return 0;
+    }
+
+    // Note that we set slots per level to be K + 1 to keep an empty space 
+    size_t slots_per_level = this->fluid_opt.lower_level_run_max + 1;
+
+    return (slots_per_level * (fluid_level - 2)) + 1;
 }
