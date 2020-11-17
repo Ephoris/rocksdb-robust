@@ -20,14 +20,17 @@ class FluidCompactor;
 
 typedef struct CompactionTask
 {
-rocksdb::DB * db;
-FluidCompactor * compactor;
-const std::string & column_family_name;
+rocksdb::DB *db;
+FluidCompactor *compactor;
+const std::string &column_family_name;
 std::vector<std::string> input_file_names;
 int output_level;
 rocksdb::CompactionOptions compact_options;
 size_t origin_level_id;
 bool retry_on_fail;
+bool is_a_retry;
+std::mutex &compactions_left_mutex;
+int &compactions_left_count;
 
 /**
  * @brief Construct a new Compaction Task object
@@ -40,6 +43,7 @@ bool retry_on_fail;
  * @param compact_options
  * @param origin_level_id
  * @param retry_on_fail
+ * @param is_a_retry
  */
 CompactionTask(
     rocksdb::DB * db, FluidCompactor* compactor,
@@ -48,7 +52,10 @@ CompactionTask(
     const int output_level,
     const rocksdb::CompactionOptions& compact_options,
     const size_t origin_level_id,
-    bool retry_on_fail)
+    bool retry_on_fail,
+    bool is_a_retry,
+    std::mutex &compactions_left_mutex,
+    int &compactions_left_count)
         : db(db),
         compactor(compactor),
         column_family_name(column_family_name),
@@ -56,7 +63,10 @@ CompactionTask(
         output_level(output_level),
         compact_options(compact_options),
         origin_level_id(origin_level_id),
-        retry_on_fail(retry_on_fail) {}
+        retry_on_fail(retry_on_fail),
+        is_a_retry(is_a_retry),
+        compactions_left_mutex(compactions_left_mutex),
+        compactions_left_count(compactions_left_count) {}
 } CompactionTask;
 
 

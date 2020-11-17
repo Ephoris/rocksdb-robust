@@ -1,5 +1,6 @@
 #include <iostream>
 #include <ctime>
+#include <unistd.h>
 
 #include "clipp.h"
 #include "spdlog/spdlog.h"
@@ -188,20 +189,24 @@ void build_db(environment & env)
     }
 
     spdlog::info("Waiting for all compactions to finish before closing");
-    rocksdb::ColumnFamilyMetaData cf_meta;
-    db->GetColumnFamilyMetaData(&cf_meta);
     // > Wait for all compactions to finish before flushing and closing DB
-    for (auto & level : cf_meta.levels)
-    {
-        for (auto & file : level.files)
-        {
-            while (file.being_compacted);
-        }
-    }
+    while(fluid_compactor->compactions_left_count > 0);
+    // for (auto & level : cf_meta.levels)
+    // {
+    //     for (auto & file : level.files)
+    //     {
+    //         while (file.being_compacted)
+    //         {
+    //             usleep(5 * 10e6);
+    //         }
+    //     }
+    // }
 
     if (spdlog::get_level() <= spdlog::level::debug)
     {
         spdlog::debug("Files per level");
+        rocksdb::ColumnFamilyMetaData cf_meta;
+        db->GetColumnFamilyMetaData(&cf_meta);
 
         std::vector<std::string> file_names;
         int level_idx = 1;

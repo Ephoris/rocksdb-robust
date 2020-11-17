@@ -1,7 +1,7 @@
 #include "bulk_loader.hpp"
 
 
-rocksdb::Status FluidLSMBulkLoader::bulk_load_entries(rocksdb::DB * db, size_t num_entries)
+rocksdb::Status FluidLSMBulkLoader::bulk_load_entries(rocksdb::DB *db, size_t num_entries)
 {
     spdlog::info("Bulk loading DB with {} entries", num_entries);
     rocksdb::Status status;
@@ -39,22 +39,19 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_entries(rocksdb::DB * db, size_t n
 }
 
 
-rocksdb::Status FluidLSMBulkLoader::bulk_load_levels(rocksdb::DB * db, size_t num_levels)
+rocksdb::Status FluidLSMBulkLoader::bulk_load_levels(rocksdb::DB *db, size_t num_levels)
 {
     spdlog::info("Bulk loading DB with {} levels", num_levels);
     rocksdb::Status status;
 
-    size_t E = this->fluid_opt.entry_size;
-    size_t B = this->fluid_opt.buffer_size;
-    double T = this->fluid_opt.size_ratio;
-    size_t entries_in_buffer = (B / E);
+    size_t entries_in_buffer = (this->fluid_opt.buffer_size / this->fluid_opt.entry_size);
     spdlog::debug("Number of entries that can fit in the buffer: {}", entries_in_buffer);
 
     std::vector<size_t> capacity_per_level(num_levels);
     capacity_per_level[0] = entries_in_buffer;
     for (size_t level_idx = 1; level_idx < num_levels; level_idx++)
     {
-        capacity_per_level[level_idx] = capacity_per_level[level_idx - 1] * T;
+        capacity_per_level[level_idx] = capacity_per_level[level_idx - 1] * this->fluid_opt.size_ratio;
     }
 
     if (spdlog::get_level() <= spdlog::level::debug)
@@ -74,7 +71,11 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_levels(rocksdb::DB * db, size_t nu
 }
 
 
-rocksdb::Status FluidLSMBulkLoader::bulk_load(rocksdb::DB * db, std::vector<size_t> capacity_per_level, size_t num_levels, size_t max_entries)
+rocksdb::Status FluidLSMBulkLoader::bulk_load(
+    rocksdb::DB *db,
+    std::vector<size_t> capacity_per_level,
+    size_t num_levels,
+    size_t max_entries)
 {
     rocksdb::Status status;
     size_t level_idx;
@@ -103,11 +104,11 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load(rocksdb::DB * db, std::vector<size
 
         status = this->bulk_load_single_level(db, level_idx, capacity_per_level[level_idx], num_runs);
         num_entries_loaded += capacity_per_level[level_idx];
-        // if (num_entries_loaded > max_entries)
-        // {
-        //     spdlog::debug("Already reached max entries, stopping bulk loading.");
-        //     break;
-        // }
+        if (num_entries_loaded > max_entries)
+        {
+            spdlog::debug("Already reached max entries, stopping bulk loading.");
+            break;
+        }
     }
 
     return status;
@@ -123,8 +124,6 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
     rocksdb::Status status;
     size_t entries_per_run = capacity_per_level / num_runs;
     size_t level = level_idx + 1;
-    size_t B = this->fluid_opt.buffer_size;
-    size_t T = this->fluid_opt.size_ratio;
 
     for (size_t run_idx = 0; run_idx < num_runs; run_idx++)
     {
@@ -149,24 +148,19 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
     }
 
     // We add an extra 3% to size per output file size in order to compensate for meta-data
-    this->rocksdb_compact_opt.output_file_size_limit = (uint64_t) ((B * std::pow(T, level) / num_runs) * 1.03);
+    this->rocksdb_compact_opt.output_file_size_limit = (uint64_t) (entries_per_run * this->fluid_opt.entry_size * 1.03);
     spdlog::trace("File size limit : ~ {} MB", this->rocksdb_compact_opt.output_file_size_limit >> 20);
     tmpdb::CompactionTask *task = new tmpdb::CompactionTask(
-        db,
-        this,
-        "default",
-        file_names,
-        level_idx,
-        this->rocksdb_compact_opt,
-        0,
-        true);
+        db, this, "default", file_names,
+        level_idx, this->rocksdb_compact_opt, 0, true,
+        false, this->compactions_left_mutex, this->compactions_left_count);
     this->ScheduleCompaction(task);
 
     return status;
 }
 
 
-rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB * db, size_t level_idx, size_t num_entries)
+rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB *db, size_t level_idx, size_t num_entries)
 {
     rocksdb::WriteOptions write_opt;
     write_opt.sync = false;

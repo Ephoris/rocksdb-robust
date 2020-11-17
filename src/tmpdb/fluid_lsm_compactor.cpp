@@ -215,7 +215,8 @@ CompactionTask * FluidLSMCompactor::PickCompaction(rocksdb::DB * db, const std::
 
     return new CompactionTask(
         db, this, cf_name, input_file_names,
-        target_level, this->rocksdb_compact_opt, level_id, false);
+        target_level, this->rocksdb_compact_opt, level_id, false,
+        false, this->compactions_left_mutex, this->compactions_left_count);
 }
 
 
@@ -283,20 +284,35 @@ void FluidLSMCompactor::CompactFiles(void * arg)
             task->output_level,
             task->compact_options,
             task->origin_level_id,
-            task->retry_on_fail
+            task->retry_on_fail,
+            true,
+            task->compactions_left_mutex,
+            task->compactions_left_count
         );
         task->compactor->ScheduleCompaction(new_task);
 
         return;
     }
+    // On a successful compaction we decrement the number of compactions left to do
+    task->compactions_left_mutex.lock();
+    task->compactions_left_count--;
+    task->compactions_left_mutex.unlock();
 
     return;
 }
 
 
-void FluidLSMCompactor::ScheduleCompaction(CompactionTask * task)
+void FluidLSMCompactor::ScheduleCompaction(CompactionTask *task)
 {
+    if (!task->is_a_retry)
+    {
+        this->compactions_left_mutex.lock();
+        this->compactions_left_count++;
+        this->compactions_left_mutex.unlock();
+    }
     this->rocksdb_opt.env->Schedule(&FluidLSMCompactor::CompactFiles, task);
+
+    return;
 }
 
 
