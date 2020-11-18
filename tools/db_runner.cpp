@@ -112,7 +112,7 @@ rocksdb::Status run_random_inserts(environment env)
         delete db;
         exit(EXIT_FAILURE);
     }
-    fluid_compactor->init_open_db(db);
+    // fluid_compactor->init_open_db(db);
 
     rocksdb::WriteOptions write_opt;
     write_opt.sync = false; //make every write wait for sync with log (so we see real perf impact of insert)
@@ -133,9 +133,34 @@ rocksdb::Status run_random_inserts(environment env)
         }
     }
 
-    // rocksdb::FlushOptions flush_opt;
-    // flush_opt.wait = true;
-    // db->Flush(flush_opt);
+    rocksdb::FlushOptions flush_opt;
+    flush_opt.wait = true;
+    db->Flush(flush_opt);
+
+    spdlog::info("Waiting for all remaining compactions to finish before after writes");
+    while(fluid_compactor->compactions_left_count > 0);
+
+    if (spdlog::get_level() <= spdlog::level::debug)
+    {
+        spdlog::debug("Files per level");
+        rocksdb::ColumnFamilyMetaData cf_meta;
+        db->GetColumnFamilyMetaData(&cf_meta);
+
+        std::vector<std::string> file_names;
+        int level_idx = 1;
+        for (auto & level : cf_meta.levels)
+        {
+            std::string level_str = "Level " + std::to_string(level_idx) + " :";
+            for (auto & file : level.files)
+            {
+                level_str += file.name + ", ";
+            }
+            level_str = level_str.substr(0, level_str.size() - 2);
+            spdlog::debug("{}", level_str);
+            level_idx++;
+        }
+    }
+
 
     db->Close();
     delete db;

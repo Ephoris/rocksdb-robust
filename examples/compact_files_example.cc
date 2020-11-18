@@ -74,8 +74,10 @@ public:
     // When flush happens, it determines whether to trigger compaction. If
     // triggered_writes_stop is true, it will also set the retry flag of
     // compaction-task to true.
-    void OnFlushCompleted( DB* db, const FlushJobInfo& info) override { spdlog::trace("Flushed complete");
-        CompactionTask* task = PickCompaction(db, info.cf_name);
+    void OnFlushCompleted( DB* db, const FlushJobInfo& info) override
+    {
+        spdlog::trace("Flush complete");
+        CompactionTask *task = PickCompaction(db, info.cf_name);
         if (task != nullptr)
         {
           if (info.triggered_writes_stop) {
@@ -87,7 +89,7 @@ public:
     }
 
     // Always pick a compaction which includes all files whenever possible.
-    CompactionTask* PickCompaction( DB* db, const std::string& cf_name) override
+    CompactionTask *PickCompaction( DB* db, const std::string& cf_name) override
     {
         ColumnFamilyMetaData cf_meta;
         db->GetColumnFamilyMetaData(&cf_meta);
@@ -130,7 +132,7 @@ public:
             task->compact_options,
             task->input_file_names,
             task->output_level);
-        std::cout << "Compacting files" << std::endl;
+
         printf("CompactFiles() finished with status %s\n", s.ToString().c_str());
         if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
         {

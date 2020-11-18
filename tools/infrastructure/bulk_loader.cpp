@@ -153,12 +153,11 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
         file_names.push_back(file.name);
     }
 
-    // We add an extra 6% to size per output file size in order to compensate for meta-data
-    this->rocksdb_compact_opt.output_file_size_limit = (uint64_t) (entries_per_run * this->fluid_opt.entry_size * 1.06);
+    // TODO : Want to work on something better to compensate for meta data
+    // We add an extra 5% to size per output file size in order to compensate for meta-data
+    this->rocksdb_compact_opt.output_file_size_limit = (uint64_t) (entries_per_run * this->fluid_opt.entry_size * 1.05);
     tmpdb::CompactionTask *task = new tmpdb::CompactionTask(
-        db, this, "default", file_names,
-        level_idx, this->rocksdb_compact_opt, 0, true,
-        false, this->compactions_left_mutex, this->compactions_left_count);
+        db, this, "default", file_names, level_idx, this->rocksdb_compact_opt, 0, true, false);
     this->ScheduleCompaction(task);
 
     return status;
@@ -196,9 +195,79 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB *db, size_t
         }
     }
 
+    spdlog::trace("Flushing after writing batch");
     rocksdb::FlushOptions flush_opt;
     flush_opt.wait = true;
     db->Flush(flush_opt);
 
     return status;
+}
+
+
+void FluidLSMBulkLoader::CompactFiles(void *arg)
+{
+    std::unique_ptr<tmpdb::CompactionTask> task(reinterpret_cast<tmpdb::CompactionTask *>(arg));
+    assert(task);
+    assert(task->db);
+    assert(task->output_level > (int) task->origin_level_id);
+
+    std::vector<std::string> * output_file_names = new std::vector<std::string>();
+    rocksdb::Status s = task->db->CompactFiles(
+        task->compact_options,
+        task->input_file_names,
+        task->output_level,
+        -1,
+        output_file_names
+    );
+
+    // spdlog::trace("CompactFiles {} -> {}", task->origin_level_id, task->output_level);
+    if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
+    {
+        // If a compaction task with its retry_on_fail=true failed,
+        // try to schedule another compaction in case the reason
+        // is not an IO error.
+
+        spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
+            task->origin_level_id + 1,
+            task->output_level + 1,
+            task->input_file_names.size(),
+            s.ToString());
+        tmpdb::CompactionTask *new_task = new tmpdb::CompactionTask(
+            task->db,
+            task->compactor,
+            task->column_family_name,
+            task->input_file_names,
+            task->output_level,
+            task->compact_options,
+            task->origin_level_id,
+            task->retry_on_fail,
+            true
+        );
+        task->compactor->ScheduleCompaction(new_task);
+
+        return;
+    }
+    ((FluidLSMBulkLoader *) task->compactor)->compactions_left_count--;
+    ((FluidLSMBulkLoader *) task->compactor)->compactions_left_mutex.unlock();
+
+    spdlog::trace("CompactFiles level {} -> {} finished with status : {}",
+        task->origin_level_id + 1,
+        task->output_level + 1,
+        s.ToString());
+
+    return;
+}
+
+
+void FluidLSMBulkLoader::ScheduleCompaction(tmpdb::CompactionTask *task)
+{
+    if (!task->is_a_retry)
+    {
+        this->compactions_left_mutex.lock();
+        this->compactions_left_count++;
+    }
+    this->rocksdb_opt.env->Schedule(&FluidLSMBulkLoader::CompactFiles, task);
+
+
+    return;
 }

@@ -31,6 +31,9 @@ public:
                                            const std::string & /* cf_name */,
                                            const size_t /* level */) override {return nullptr;};
 
+    static void CompactFiles(void *arg);
+
+    void ScheduleCompaction(tmpdb::CompactionTask *task) override;
 private:
     DataGenerator * data_gen;
 

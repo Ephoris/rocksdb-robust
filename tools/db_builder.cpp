@@ -172,7 +172,7 @@ void build_db(environment & env)
         exit(EXIT_FAILURE);
     }
 
-    fluid_compactor->init_open_db(db);
+    // fluid_compactor->init_open_db(db);
     if (env.bulk_load_mode == tmpdb::bulk_load_type::LEVELS)
     {
         status = fluid_compactor->bulk_load_levels(db, env.L);
