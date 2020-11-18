@@ -149,6 +149,7 @@ void build_db(environment & env)
     rocksdb_opt->error_if_exists = true;
     rocksdb_opt->compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt->compression = rocksdb::kNoCompression;
+    rocksdb_opt->level0_file_num_compaction_trigger = -1;
     rocksdb_opt->IncreaseParallelism(env.parallelism);
 
     rocksdb_opt->disable_auto_compactions = true;
@@ -191,16 +192,6 @@ void build_db(environment & env)
     spdlog::info("Waiting for all compactions to finish before closing");
     // > Wait for all compactions to finish before flushing and closing DB
     while(fluid_compactor->compactions_left_count > 0);
-    // for (auto & level : cf_meta.levels)
-    // {
-    //     for (auto & file : level.files)
-    //     {
-    //         while (file.being_compacted)
-    //         {
-    //             usleep(5 * 10e6);
-    //         }
-    //     }
-    // }
 
     if (spdlog::get_level() <= spdlog::level::debug)
     {

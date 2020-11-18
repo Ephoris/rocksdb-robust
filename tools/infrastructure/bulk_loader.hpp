@@ -2,6 +2,8 @@
 #define BULK_LOADER_H_ 
 
 #include <iostream>
+#include <mutex>
+#include <vector>
 
 #include "spdlog/spdlog.h"
 #include "rocksdb/db.h"

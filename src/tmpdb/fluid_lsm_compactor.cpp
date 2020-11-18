@@ -268,14 +268,18 @@ void FluidLSMCompactor::CompactFiles(void * arg)
         output_file_names
     );
 
-    // spdlog::trace("CompactFiles({} -> {}) finished with status: {}", task->origin_level_id, task->output_level, s.ToString());
+    // spdlog::trace("CompactFiles {} -> {}", task->origin_level_id, task->output_level);
     if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
     {
         // If a compaction task with its retry_on_fail=true failed,
         // try to schedule another compaction in case the reason
         // is not an IO error.
 
-        // spdlog::warn("CompactFile() did not finish, rescheduling.");
+        spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
+            task->origin_level_id + 1,
+            task->output_level + 1,
+            task->input_file_names.size(),
+            s.ToString());
         CompactionTask * new_task = new CompactionTask(
             task->db,
             task->compactor,
@@ -293,10 +297,10 @@ void FluidLSMCompactor::CompactFiles(void * arg)
 
         return;
     }
-    // On a successful compaction we decrement the number of compactions left to do
-    task->compactions_left_mutex.lock();
     task->compactions_left_count--;
     task->compactions_left_mutex.unlock();
+
+    spdlog::trace("CompactFiles level {} -> {} finished with status : {}", task->origin_level_id + 1, task->output_level + 1, s.ToString());
 
     return;
 }
@@ -306,11 +310,11 @@ void FluidLSMCompactor::ScheduleCompaction(CompactionTask *task)
 {
     if (!task->is_a_retry)
     {
-        this->compactions_left_mutex.lock();
+        task->compactions_left_mutex.lock();
         this->compactions_left_count++;
-        this->compactions_left_mutex.unlock();
     }
     this->rocksdb_opt.env->Schedule(&FluidLSMCompactor::CompactFiles, task);
+
 
     return;
 }
@@ -327,18 +331,4 @@ size_t FluidLSMCompactor::estimate_levels(size_t N, double T, size_t E, size_t B
     size_t estimated_levels = std::ceil(std::log(((N * E) / B) + T) / std::log(T));
 
     return estimated_levels;
-}
-
-
-size_t FluidLSMCompactor::fluid_level_to_rocksdb_start_idx(size_t fluid_level)
-{
-    if (fluid_level == 1)
-    {
-        return 0;
-    }
-
-    // Note that we set slots per level to be K + 1 to keep an empty space 
-    size_t slots_per_level = this->fluid_opt.lower_level_run_max + 1;
-
-    return (slots_per_level * (fluid_level - 2)) + 1;
 }

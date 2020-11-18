@@ -127,14 +127,20 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
 
     for (size_t run_idx = 0; run_idx < num_runs; run_idx++)
     {
-        spdlog::trace("Loading run {} at level {} with {} entries (file size ~ {} MB)",
-            run_idx, level, entries_per_run, (entries_per_run * this->fluid_opt.entry_size) >> 20);
+        spdlog::trace("Loading RUN {} at LEVEL {} : {} entries (file size ~ {:.3f} MB)",
+            run_idx, level, entries_per_run,
+            (entries_per_run * this->fluid_opt.entry_size) / static_cast<double>(1 << 20));
 
         status = this->bulk_load_single_run(db, level_idx, entries_per_run);
     }
 
     // Level 1 (IDX = 0) items do not need to be forced down to any level, leave it as is
-    if (level == 1) { return status; }
+    if (level == 1)
+    {
+        //> Wait for any remaning compactions to be placed in before we fill in the final level
+        while (this->compactions_left_count > 0);
+        return status;
+    }
 
     // Force all runs in this level to be mapped to their respective level
     rocksdb::ColumnFamilyMetaData cf_meta;
@@ -147,9 +153,8 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
         file_names.push_back(file.name);
     }
 
-    // We add an extra 3% to size per output file size in order to compensate for meta-data
-    this->rocksdb_compact_opt.output_file_size_limit = (uint64_t) (entries_per_run * this->fluid_opt.entry_size * 1.03);
-    spdlog::trace("File size limit : ~ {} MB", this->rocksdb_compact_opt.output_file_size_limit >> 20);
+    // We add an extra 6% to size per output file size in order to compensate for meta-data
+    this->rocksdb_compact_opt.output_file_size_limit = (uint64_t) (entries_per_run * this->fluid_opt.entry_size * 1.06);
     tmpdb::CompactionTask *task = new tmpdb::CompactionTask(
         db, this, "default", file_names,
         level_idx, this->rocksdb_compact_opt, 0, true,

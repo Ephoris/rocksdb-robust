@@ -171,14 +171,13 @@ class FluidLSMCompactor : public FluidCompactor
 public:
     std::mutex compactions_left_mutex;
     int compactions_left_count = 0;
-    int compactions_failed_count = 0;
 
     FluidLSMCompactor(const FluidOptions fluid_opt, const rocksdb::Options rocksdb_opt)
         : FluidCompactor(fluid_opt, rocksdb_opt) {};
 
     size_t largest_occupied_level() const;
 
-    CompactionTask * PickCompaction(rocksdb::DB * db, const std::string & cf_name, const size_t level) override;
+    CompactionTask *PickCompaction(rocksdb::DB * db, const std::string & cf_name, const size_t level) override;
 
     void OnFlushCompleted(rocksdb::DB * db, const ROCKSDB_NAMESPACE::FlushJobInfo & info) override;
 
@@ -205,8 +204,6 @@ public:
      * @return size_t Target level for compaction
      */
     size_t add_files_to_compaction(size_t level_id, std::vector<std::string> & file_names);
-
-    size_t fluid_level_to_rocksdb_start_idx(size_t fluid_level);
 };
 
 
