@@ -30,6 +30,9 @@ typedef struct
     int seed = std::time(nullptr);
     int max_open_files = 128;
 
+    std::string write_out_path;
+    bool write_out = false;
+
     int verbose = 0;
 } environment;
 
@@ -55,7 +58,9 @@ environment parse_args(int argc, char * argv[])
         (option("-r", "--non_empty_reads") & integer("num", env.non_empty_reads))
             % ("empty queries, [default: " + to_string(env.non_empty_reads) + "]"),
         (option("-w", "--writes") & integer("num", env.writes))
-            % ("empty queries, [default: " + to_string(env.writes) + "]")
+            % ("empty queries, [default: " + to_string(env.writes) + "]"),
+        (option("-o", "--output").set(env.write_out) & value("file", env.write_out_path))
+            % ("optional write out all recorded times [default: off]")
     );
 
     auto minor_opt = "minor options:" % (
@@ -132,7 +137,7 @@ std::vector<std::string> get_all_valid_keys(environment env)
 }
 
 
-rocksdb::Status run_random_non_empty_reads(environment env, std::vector<std::string> existing_keys)
+int run_random_non_empty_reads(environment env, std::vector<std::string> existing_keys)
 {
     spdlog::debug("Opening DB for random non empty reads: {}", env.db_path);
     rocksdb::Options rocksdb_opt;
@@ -182,11 +187,11 @@ rocksdb::Status run_random_non_empty_reads(environment env, std::vector<std::str
     db->Close();
     delete db;
 
-    return status;
+    return non_empty_read_duration.count();
 }
 
 
-rocksdb::Status run_random_empty_reads(environment env)
+int run_random_empty_reads(environment env)
 {
     spdlog::debug("Opening DB for random empty reads: {}", env.db_path);
     rocksdb::Options rocksdb_opt;
@@ -196,8 +201,8 @@ rocksdb::Status run_random_empty_reads(environment env)
     rocksdb_opt.error_if_exists = false;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt.compression = rocksdb::kNoCompression;
-    rocksdb_opt.use_direct_reads = true;
 
+    rocksdb_opt.use_direct_reads = true;
     rocksdb_opt.num_levels = env.rocksdb_max_levels;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
@@ -236,11 +241,11 @@ rocksdb::Status run_random_empty_reads(environment env)
     db->Close();
     delete db;
 
-    return status;
+    return empty_read_duration.count();
 }
 
 
-rocksdb::Status run_random_inserts(environment env)
+int run_random_inserts(environment env)
 {
     spdlog::debug("Opening DB for writes: {}", env.db_path);
     rocksdb::Options rocksdb_opt;
@@ -257,6 +262,7 @@ rocksdb::Status run_random_inserts(environment env)
     rocksdb_opt.compaction_readahead_size = 1024 * env.compaction_readahead_size;
     rocksdb_opt.use_direct_io_for_flush_and_compaction = true;
     rocksdb_opt.max_open_files = env.max_open_files;
+    rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     // Note that level 0 in RocksDB is traditionally level 1 in an LSM model. The write buffer is what we normally would
     // label as level 0. Here we want level 1 to contain T sst files before trigger a compaction. Need to test whether
@@ -265,11 +271,18 @@ rocksdb::Status run_random_inserts(environment env)
 
     // Number of files in level 0 to slow down writes. Since we're prioritizing compactions we will wait for those to
     // finish up first by slowing down the write speed
-    rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio * 2;
+    rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio;
+    rocksdb_opt.level0_stop_writes_trigger = fluid_opt.size_ratio + 2;
 
-    rocksdb_opt.IncreaseParallelism(env.parallelism);
+    rocksdb_opt.max_bytes_for_level_base = fluid_opt.size_ratio * fluid_opt.buffer_size;
+    rocksdb_opt.max_bytes_for_level_multiplier = fluid_opt.size_ratio;
+
     tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
+
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(fluid_opt.bits_per_element, false));
+    rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     rocksdb::DB *db = nullptr;
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
@@ -284,7 +297,7 @@ rocksdb::Status run_random_inserts(environment env)
     rocksdb::WriteOptions write_opt;
     write_opt.sync = false; //> make every write wait for sync with log (so we see real perf impact of insert)
     write_opt.low_pri = true; //> every insert is less important than compaction
-    write_opt.disableWAL = false; 
+    write_opt.disableWAL = true; 
     write_opt.no_slowdown = false; //> enabling this will make some insertions fail
 
     int max_writes_failed = env.writes * 0.1;
@@ -354,7 +367,7 @@ rocksdb::Status run_random_inserts(environment env)
     db->Close();
     delete db;
 
-    return status;
+    return write_duration.count();
 }
 
 
@@ -379,23 +392,25 @@ int main(int argc, char * argv[])
         spdlog::set_level(spdlog::level::info);
     }
 
+    int write_duration = -1, read_duration = -1, empty_read_duration = -1;
+
     if (env.writes > 0)
     {
-        rocksdb::Status write_status = run_random_inserts(env);
+        write_duration = run_random_inserts(env);
     }
 
-    if (env.non_empty_reads > 0 || env.empty_reads > 0)
+    if (env.non_empty_reads > 0)
     {
         std::vector<std::string> existing_keys = get_all_valid_keys(env);
-        if (env.non_empty_reads > 0)
-        {
-            rocksdb::Status non_empty_read_status = run_random_non_empty_reads(env, existing_keys);
-        }
+        read_duration = run_random_non_empty_reads(env, existing_keys);
     }
+
     if (env.empty_reads > 0)
     {
-        rocksdb::Status empty_read_status = run_random_empty_reads(env); 
+        empty_read_duration = run_random_empty_reads(env); 
     }
+
+    spdlog::info("(w, z1, z0) : ({}, {}, {})", write_duration, read_duration, empty_read_duration);
 
     return 0;
 }

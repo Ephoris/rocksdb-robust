@@ -52,7 +52,8 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
         input_file_names.push_back(file.name);
     }
     size_t level_capacity = (T - 1) * std::pow(T, level_idx + 1) * (this->fluid_opt.buffer_size);
-    if ((int) level_idx == this->largest_occupied_level(db) - 1) //> Last level we restrict number of runs to Z
+
+    if ((int) level_idx == this->largest_occupied_level(db)) //> Last level we restrict number of runs to Z
     {
         this->rocksdb_compact_opt.output_file_size_limit = level_capacity / this->fluid_opt.largest_level_run_max;
     }
@@ -60,6 +61,9 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
     {
         this->rocksdb_compact_opt.output_file_size_limit = level_capacity / this->fluid_opt.lower_level_run_max;
     }
+
+    // We give an extra 5% memory per file in order to accomodate meta data
+    this->rocksdb_compact_opt.output_file_size_limit *= static_cast<double>(1.05);
 
     return new CompactionTask(
         db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, true, false);
@@ -74,7 +78,7 @@ void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPAC
     int largest_level_idx = this->largest_occupied_level(db);
     int live_runs;
 
-    for (int level_idx = 0; level_idx < largest_level_idx; level_idx++)
+    for (int level_idx = largest_level_idx; level_idx > -1; level_idx--)
     {
         live_runs = 0;
         for (auto &run : cf_meta.levels[level_idx].files)
@@ -82,6 +86,7 @@ void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPAC
             if (run.being_compacted) {continue;}
             live_runs++;
         }
+
         bool level_1_needs_compact = ((level_idx == 0) && (live_runs > this->fluid_opt.size_ratio - 1));
         bool lower_levels_need_compact = ((level_idx < largest_level_idx) && (live_runs > this->fluid_opt.lower_level_run_max));
         bool last_levels_need_compact = ((level_idx == largest_level_idx) && (live_runs > this->fluid_opt.largest_level_run_max));
@@ -141,9 +146,9 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         return;
     }
 
-    ((FluidLSMCompactor *) task->compactor)->compactions_left_mutex.lock();
+    // ((FluidLSMCompactor *) task->compactor)->compactions_left_mutex.lock();
     ((FluidLSMCompactor *) task->compactor)->compactions_left_count--;
-    ((FluidLSMCompactor *) task->compactor)->compactions_left_mutex.unlock();
+    // ((FluidLSMCompactor *) task->compactor)->compactions_left_mutex.unlock();
     spdlog::trace("CompactFiles level {} -> {} finished with status : {}", task->origin_level_id + 1, task->output_level + 1, s.ToString());
 
     return;
@@ -154,9 +159,9 @@ void FluidLSMCompactor::ScheduleCompaction(CompactionTask *task)
 {
     if (!task->is_a_retry)
     {
-        this->compactions_left_mutex.lock();
+        // this->compactions_left_mutex.lock();
         this->compactions_left_count++;
-        this->compactions_left_mutex.unlock();
+        // this->compactions_left_mutex.unlock();
     }
     this->rocksdb_opt.env->Schedule(&FluidLSMCompactor::CompactFiles, task);
 
