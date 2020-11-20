@@ -1,26 +1,6 @@
 #include "data_generator.hpp"
 
 
-DataGenerator::DataGenerator()
-{
-    this->seed = std::time(nullptr);
-
-    spdlog::trace("Data generator with seed : {}", seed);
-
-    std::srand(this->seed);
-}
-
-
-DataGenerator::DataGenerator(int seed)
-{
-    this->seed = seed;
-
-    spdlog::trace("Data generator with seed : {}", seed);
-
-    std::srand(seed);
-}
-
-
 RandomGenerator::RandomGenerator()
 {
     this->engine.seed(this->seed);

@@ -17,10 +17,6 @@ class DataGenerator
 public:
     int seed;
 
-    DataGenerator();
-
-    DataGenerator(int seed);
-
     virtual std::string generate_key(const std::string key_prefix) = 0;
 
     virtual std::string generate_val(size_t value_size, const std::string value_prefix) = 0;

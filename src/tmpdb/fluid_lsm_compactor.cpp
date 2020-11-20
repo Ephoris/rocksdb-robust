@@ -55,15 +55,15 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
 
     if ((int) level_idx == this->largest_occupied_level(db)) //> Last level we restrict number of runs to Z
     {
-        this->rocksdb_compact_opt.output_file_size_limit = level_capacity / this->fluid_opt.largest_level_run_max;
+        this->rocksdb_compact_opt.output_file_size_limit = static_cast<uint64_t>(level_capacity) / this->fluid_opt.largest_level_run_max;
     }
     else
     {
-        this->rocksdb_compact_opt.output_file_size_limit = level_capacity / this->fluid_opt.lower_level_run_max;
+        this->rocksdb_compact_opt.output_file_size_limit = static_cast<uint64_t>(level_capacity) / this->fluid_opt.lower_level_run_max;
     }
 
     // We give an extra 5% memory per file in order to accomodate meta data
-    this->rocksdb_compact_opt.output_file_size_limit *= static_cast<double>(1.05);
+    this->rocksdb_compact_opt.output_file_size_limit *= 1.05;
 
     return new CompactionTask(
         db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, true, false);
