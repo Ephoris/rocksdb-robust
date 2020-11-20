@@ -138,7 +138,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
     if (level == 1)
     {
         //> Wait for any remaning compactions to be placed in before we fill in the final level
-        while (this->compactions_left_count > 0);
+        // while (this->compactions_left_count > 0);
         return status;
     }
 

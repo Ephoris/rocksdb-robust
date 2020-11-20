@@ -168,7 +168,7 @@ void build_db(environment & env)
     table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(env.bits_per_element, false));
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
-    rocksdb::DB * db = nullptr;
+    rocksdb::DB *db = nullptr;
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
     // db->SetOptions({{"target_file_size_multiplier", "10"}});
     if (!status.ok())
@@ -197,7 +197,7 @@ void build_db(environment & env)
     }
 
     spdlog::info("Waiting for all compactions to finish before closing");
-    // > Wait for all compactions to finish before flushing and closing DB
+    // Wait for all compactions to finish before flushing and closing DB
     while(fluid_compactor->compactions_left_count > 0);
 
     if (spdlog::get_level() <= spdlog::level::debug)

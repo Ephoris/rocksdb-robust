@@ -5,6 +5,7 @@
 #include <cassert>
 #include <string>
 #include <ctime>
+#include <random>
 #include <vector>
 
 #include "spdlog/spdlog.h"
@@ -36,13 +37,17 @@ public:
 class RandomGenerator : public DataGenerator
 {
 public:
-    RandomGenerator() : DataGenerator() {};
+    RandomGenerator();
 
-    RandomGenerator(int seed) : DataGenerator(seed) {};
+    RandomGenerator(int seed);
 
     std::string generate_key(const std::string key_prefix);
 
     std::string generate_val(size_t value_size, const std::string value_prefix);
+
+private:
+    std::uniform_int_distribution<int> dist;
+    std::mt19937 engine;
 };
 
 

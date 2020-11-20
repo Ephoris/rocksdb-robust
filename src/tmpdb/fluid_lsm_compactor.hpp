@@ -5,6 +5,7 @@
 #include <set>
 #include <mutex>
 #include <vector>
+#include <atomic>
 
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
@@ -108,7 +109,7 @@ class FluidLSMCompactor : public FluidCompactor
 {
 public:
     std::mutex compactions_left_mutex;
-    int compactions_left_count = 0;
+    std::atomic<int> compactions_left_count;
 
     /**
      * @brief Construct a new FluidLSMCompactor object
@@ -117,7 +118,7 @@ public:
      * @param rocksdb_opt 
      */
     FluidLSMCompactor(const FluidOptions fluid_opt, const rocksdb::Options rocksdb_opt)
-        : FluidCompactor(fluid_opt, rocksdb_opt) {};
+        : FluidCompactor(fluid_opt, rocksdb_opt), compactions_left_count(0) {};
 
     /**
      * @brief 
