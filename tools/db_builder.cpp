@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 #include <ctime>
 #include <unistd.h>
@@ -6,6 +7,8 @@
 #include "spdlog/spdlog.h"
 
 #include "rocksdb/db.h"
+#include "rocksdb/table.h"
+#include "rocksdb/filter_policy.h"
 #include "tmpdb/fluid_lsm_compactor.hpp"
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
@@ -142,27 +145,31 @@ void fill_fluid_opt(environment env, tmpdb::FluidOptions &fluid_opt)
 void build_db(environment & env)
 {
     spdlog::info("Building DB: {}", env.db_path);
-    rocksdb::Options * rocksdb_opt = new rocksdb::Options();
+    rocksdb::Options rocksdb_opt;
     tmpdb::FluidOptions fluid_opt;
 
-    rocksdb_opt->create_if_missing = true;
-    rocksdb_opt->error_if_exists = true;
-    rocksdb_opt->compaction_style = rocksdb::kCompactionStyleNone;
-    rocksdb_opt->compression = rocksdb::kNoCompression;
-    rocksdb_opt->level0_file_num_compaction_trigger = -1;
-    rocksdb_opt->IncreaseParallelism(env.parallelism);
+    rocksdb_opt.create_if_missing = true;
+    rocksdb_opt.error_if_exists = true;
+    rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
+    rocksdb_opt.compression = rocksdb::kNoCompression;
+    rocksdb_opt.level0_file_num_compaction_trigger = -1;
+    rocksdb_opt.IncreaseParallelism(env.parallelism);
 
-    rocksdb_opt->disable_auto_compactions = true;
-    rocksdb_opt->write_buffer_size = env.B; 
-    rocksdb_opt->num_levels = env.max_rocksdb_levels;
+    rocksdb_opt.disable_auto_compactions = true;
+    rocksdb_opt.write_buffer_size = env.B; 
+    rocksdb_opt.num_levels = env.max_rocksdb_levels;
 
     fill_fluid_opt(env, fluid_opt);
-    RandomGenerator gen = RandomGenerator(env.seed);
-    FluidLSMBulkLoader * fluid_compactor = new FluidLSMBulkLoader(gen, fluid_opt, *rocksdb_opt);
-    rocksdb_opt->listeners.emplace_back(fluid_compactor);
+    RandomGenerator gen(env.seed);
+    FluidLSMBulkLoader *fluid_compactor = new FluidLSMBulkLoader(gen, fluid_opt, rocksdb_opt);
+    rocksdb_opt.listeners.emplace_back(fluid_compactor);
+
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(env.bits_per_element, false));
+    rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     rocksdb::DB * db = nullptr;
-    rocksdb::Status status = rocksdb::DB::Open(*rocksdb_opt, env.db_path, &db);
+    rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
     // db->SetOptions({{"target_file_size_multiplier", "10"}});
     if (!status.ok())
     {
@@ -203,23 +210,21 @@ void build_db(environment & env)
         int level_idx = 1;
         for (auto & level : cf_meta.levels)
         {
-            std::string level_str = "Level " + std::to_string(level_idx) + " :";
+            std::string level_str = "";
             for (auto & file : level.files)
             {
                 level_str += file.name + ", ";
             }
-            level_str = level_str.substr(0, level_str.size() - 2);
-            spdlog::debug("{}", level_str);
+            level_str = level_str == "" ? "EMPTY" : level_str.substr(0, level_str.size() - 2);
+            spdlog::debug("Level {} : {}", level_idx, level_str);
             level_idx++;
         }
     }
 
     fluid_opt.write_config(env.db_path + "/fluid_config.json");
 
-
     db->Close();
     delete db;
-    delete rocksdb_opt;
 }
 
 

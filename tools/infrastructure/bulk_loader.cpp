@@ -25,12 +25,12 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_entries(rocksdb::DB *db, size_t nu
     if (spdlog::get_level() <= spdlog::level::debug)
     {
         std::string capacity_str = "";
-        for (auto & capacity : capacity_per_level)
+        for (auto &capacity : capacity_per_level)
         {
             capacity_str += std::to_string(capacity) + ", ";
         }
         capacity_str = capacity_str.substr(0, capacity_str.size() - 2);
-        spdlog::debug("Capcaity per level : [{}]", capacity_str);
+        spdlog::debug("Entries per level : [{}]", capacity_str);
     }
 
     status = this->bulk_load(db, capacity_per_level, estimated_levels, num_entries);
@@ -48,7 +48,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_levels(rocksdb::DB *db, size_t num
     spdlog::debug("Number of entries that can fit in the buffer: {}", entries_in_buffer);
 
     std::vector<size_t> capacity_per_level(num_levels);
-    capacity_per_level[0] = entries_in_buffer;
+    capacity_per_level[0] = entries_in_buffer * (this->fluid_opt.size_ratio - 1);
     for (size_t level_idx = 1; level_idx < num_levels; level_idx++)
     {
         capacity_per_level[level_idx] = capacity_per_level[level_idx - 1] * this->fluid_opt.size_ratio;
@@ -57,12 +57,12 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_levels(rocksdb::DB *db, size_t num
     if (spdlog::get_level() <= spdlog::level::debug)
     {
         std::string capacity_str = "";
-        for (auto & capacity : capacity_per_level)
+        for (auto &capacity : capacity_per_level)
         {
             capacity_str += std::to_string(capacity) + ", ";
         }
         capacity_str = capacity_str.substr(0, capacity_str.size() - 2);
-        spdlog::debug("Capcaity per level : [{}]", capacity_str);
+        spdlog::debug("Entries per level : [{}]", capacity_str);
     }
 
     status = this->bulk_load(db, capacity_per_level, num_levels, INT_MAX);
@@ -82,7 +82,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load(
     size_t num_runs;
     size_t num_entries_loaded = 0;
 
-    // Fill up levels starting rom the BOTTOM
+    // Fill up levels starting from the BOTTOM
     for (size_t level = num_levels; level > 0; level--)
     {
         level_idx = level - 1;
@@ -104,7 +104,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load(
 
         status = this->bulk_load_single_level(db, level_idx, capacity_per_level[level_idx], num_runs);
         num_entries_loaded += capacity_per_level[level_idx];
-        if (num_entries_loaded > max_entries)
+        if (this->stop_after_level_filled && num_entries_loaded > max_entries)
         {
             spdlog::debug("Already reached max entries, stopping bulk loading.");
             break;
@@ -131,7 +131,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
             run_idx, level, entries_per_run,
             (entries_per_run * this->fluid_opt.entry_size) / static_cast<double>(1 << 20));
 
-        status = this->bulk_load_single_run(db, level_idx, entries_per_run);
+        status = this->bulk_load_single_run(db, entries_per_run);
     }
 
     // Level 1 (IDX = 0) items do not need to be forced down to any level, leave it as is
@@ -164,7 +164,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
 }
 
 
-rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB *db, size_t level_idx, size_t num_entries)
+rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB *db, size_t num_entries)
 {
     rocksdb::WriteOptions write_opt;
     write_opt.sync = false;
@@ -175,9 +175,6 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB *db, size_t
     size_t buffer_size = this->fluid_opt.entry_size * num_entries * 8;
     rocksdb::Status status = db->SetOptions({{"write_buffer_size", std::to_string(buffer_size)}});
 
-    std::string value_prefix = std::to_string(level_idx) + "|";
-    std::string key_prefix = value_prefix;
-
     size_t batch_size = std::min((size_t) BATCH_SIZE, num_entries);
     for (size_t entry_num = 0; entry_num < num_entries; entry_num += batch_size)
     {
@@ -185,7 +182,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_run(rocksdb::DB *db, size_t
         for (int i = 0; i < (int) batch_size; i++)
         {
             std::pair<std::string, std::string> key_value =
-                this->data_gen->generate_kv_pair(this->fluid_opt.entry_size, key_prefix, value_prefix);
+                this->data_gen.generate_kv_pair(this->fluid_opt.entry_size);
             batch.Put(key_value.first, key_value.second);
         }
         status = db->Write(write_opt, &batch);
@@ -211,7 +208,7 @@ void FluidLSMBulkLoader::CompactFiles(void *arg)
     assert(task->db);
     assert(task->output_level > (int) task->origin_level_id);
 
-    std::vector<std::string> * output_file_names = new std::vector<std::string>();
+    std::vector<std::string> *output_file_names = new std::vector<std::string>();
     rocksdb::Status s = task->db->CompactFiles(
         task->compact_options,
         task->input_file_names,

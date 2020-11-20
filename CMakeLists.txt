@@ -104,7 +104,6 @@ target_compile_options(tmpdb PUBLIC
     "-fexceptions"
     "-fasynchronous-unwind-tables"
     $<$<BOOL:DEBUG>:-g2>
-    $<$<BOOL:DEBUG>:-g2>
     $<IF:$<BOOL:${DEBUG}>,-O0,-O2>
 )
 

@@ -1,10 +1,12 @@
-#include <iostream>
+#include <chrono>
 #include <ctime>
+#include <iostream>
 
 #include "clipp.h"
 #include "spdlog/spdlog.h"
 
 #include "rocksdb/db.h"
+#include "rocksdb/options.h"
 #include "tmpdb/fluid_lsm_compactor.hpp"
 #include "infrastructure/data_generator.hpp"
 
@@ -22,6 +24,7 @@ typedef struct
 
     int compaction_readahead_size = 64;
     int seed = std::time(nullptr);
+    int max_open_files = 128;
 
     int verbose = 0;
 } environment;
@@ -76,6 +79,133 @@ environment parse_args(int argc, char * argv[])
 }
 
 
+std::vector<std::string> get_all_valid_keys(environment env)
+{
+    // TODO: In reality we should be saving the list of all keys while building the DB to speed up testing. No need to
+    // go through and retrieve all keys manually
+    spdlog::info("Grabbing existing keys");
+    std::vector<std::string> existing_keys;
+    rocksdb::Options rocksdb_opt;
+    tmpdb::FluidOptions fluid_opt(env.db_path + "/fluid_config.json");
+
+    rocksdb_opt.create_if_missing = false;
+    rocksdb_opt.error_if_exists = false;
+    rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
+    rocksdb_opt.compression = rocksdb::kNoCompression;
+
+    // rocksdb_opt.num_levels = env.rocksdb_max_levels;
+    // rocksdb_opt.use_direct_reads = true;
+    // rocksdb_opt.IncreaseParallelism(env.parallelism);
+
+    tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
+    rocksdb_opt.listeners.emplace_back(fluid_compactor);
+
+    rocksdb::DB *db = nullptr;
+    rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
+    if (!status.ok())
+    {
+        spdlog::error("Problems opening DB");
+        spdlog::error("{}", status.ToString());
+        delete db;
+        exit(EXIT_FAILURE);
+    }
+
+    rocksdb::Iterator *rocksdb_it = db->NewIterator(rocksdb::ReadOptions());
+    rocksdb_it->SeekToFirst();
+    while (rocksdb_it->Valid())
+    {
+        spdlog::trace("{}", rocksdb_it->key().ToString());
+        rocksdb_it->Next();
+    }
+    // if (!rocksdb_it->status().ok())
+    // {
+    //     spdlog::error("Unable to retrieve all keys : {}", rocksdb_it->status().ToString());
+    //     delete rocksdb_it;
+    //     delete db;
+    //     exit(EXIT_FAILURE);
+    // }
+
+    db->Close();
+    delete rocksdb_it;
+    delete db;
+
+    return existing_keys;
+}
+
+
+rocksdb::Status run_random_non_empty_reads(environment env, std::vector<std::string> existing_keys)
+{
+    spdlog::info("Opening DB for random reads: {}", env.db_path);
+    rocksdb::Options rocksdb_opt;
+    tmpdb::FluidOptions fluid_opt(env.db_path + "/fluid_config.json");
+
+    rocksdb_opt.create_if_missing = false;
+    rocksdb_opt.error_if_exists = false;
+    rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
+    rocksdb_opt.compression = rocksdb::kNoCompression;
+
+    rocksdb_opt.num_levels = env.rocksdb_max_levels;
+    rocksdb_opt.IncreaseParallelism(env.parallelism);
+
+    tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
+    rocksdb_opt.listeners.emplace_back(fluid_compactor);
+
+    rocksdb::DB *db = nullptr;
+    rocksdb::Status status = rocksdb::DB::OpenForReadOnly(rocksdb_opt, env.db_path, &db);
+    if (!status.ok())
+    {
+        spdlog::error("Problems opening DB");
+        spdlog::error("{}", status.ToString());
+        delete db;
+        exit(EXIT_FAILURE);
+    }
+
+    rocksdb::ReadOptions read_opt;
+    spdlog::trace("Key example: {}", existing_keys[0]);
+
+    db->Close();
+    delete db;
+
+    return rocksdb::Status::OK();
+}
+
+
+rocksdb::Status run_random_empty_reads(environment env, std::vector<std::string> existing_keys)
+{
+    spdlog::info("Opening DB for random reads: {}", env.db_path);
+    rocksdb::Options rocksdb_opt;
+    tmpdb::FluidOptions fluid_opt(env.db_path + "/fluid_config.json");
+
+    rocksdb_opt.create_if_missing = false;
+    rocksdb_opt.error_if_exists = false;
+    rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
+    rocksdb_opt.compression = rocksdb::kNoCompression;
+
+    rocksdb_opt.num_levels = env.rocksdb_max_levels;
+    rocksdb_opt.IncreaseParallelism(env.parallelism);
+
+    tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
+    rocksdb_opt.listeners.emplace_back(fluid_compactor);
+
+    rocksdb::DB *db = nullptr;
+    rocksdb::Status status = rocksdb::DB::OpenForReadOnly(rocksdb_opt, env.db_path, &db);
+    if (!status.ok())
+    {
+        spdlog::error("Problems opening DB");
+        spdlog::error("{}", status.ToString());
+        delete db;
+        exit(EXIT_FAILURE);
+    }
+
+    rocksdb::ReadOptions read_opt;
+
+    db->Close();
+    delete db;
+
+    return rocksdb::Status::OK();
+}
+
+
 rocksdb::Status run_random_inserts(environment env)
 {
     spdlog::info("Opening DB: {}", env.db_path);
@@ -88,22 +218,26 @@ rocksdb::Status run_random_inserts(environment env)
     rocksdb_opt.compression = rocksdb::kNoCompression;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
-    rocksdb_opt.write_buffer_size = fluid_opt.buffer_size;
+    rocksdb_opt.write_buffer_size = fluid_opt.buffer_size; //> "Level 0" or the in memory buffer
     rocksdb_opt.num_levels = env.rocksdb_max_levels;
     rocksdb_opt.compaction_readahead_size = 1024 * env.compaction_readahead_size;
-    // rocksdb_opt.new_table_reader_for_compaction_inputs = true;
-    // rocksdb_opt.writable_file_max_buffer_size = 2 * rocksdb_opt.compaction_readahead_size;
-    // rocksdb_opt.use_direct_io_for_flush_and_compaction = true;
-    // rocksdb_opt.use_direct_reads = true;
-    // rocksdb_opt.allow_mmap_reads = false;
-    // rocksdb_opt.allow_mmap_writes = false;
+    rocksdb_opt.use_direct_io_for_flush_and_compaction = true;
+    rocksdb_opt.max_open_files = env.max_open_files;
+
+    // Note that level 0 in RocksDB is traditionally level 1 in an LSM model. The write buffer is what we normally would
+    // label as level 0. Here we want level 1 to contain T sst files before trigger a compaction. Need to test whether
+    // this mattesrs given our custom compaction listener
+    rocksdb_opt.level0_file_num_compaction_trigger = fluid_opt.size_ratio;
+
+    // Number of files in level 0 to slow down writes. Since we're prioritizing compactions we will wait for those to
+    // finish up first by slowing down the write speed
+    rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio * 2;
 
     rocksdb_opt.IncreaseParallelism(env.parallelism);
-    tmpdb::FluidLSMCompactor * fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
+    tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
-    spdlog::info("Opening DB for writes");
-    rocksdb::DB * db = nullptr;
+    rocksdb::DB *db = nullptr;
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
     if (!status.ok())
     {
@@ -112,16 +246,19 @@ rocksdb::Status run_random_inserts(environment env)
         delete db;
         exit(EXIT_FAILURE);
     }
-    // fluid_compactor->init_open_db(db);
 
     rocksdb::WriteOptions write_opt;
-    write_opt.sync = false; //make every write wait for sync with log (so we see real perf impact of insert)
-    write_opt.low_pri = true; // every insert is less important than compaction
+    write_opt.sync = false; //> make every write wait for sync with log (so we see real perf impact of insert)
+    write_opt.low_pri = true; //> every insert is less important than compaction
     write_opt.disableWAL = false; 
-    write_opt.no_slowdown = false; // enabling this will make some insertions fail
+    write_opt.no_slowdown = false; //> enabling this will make some insertions fail
+
+    int max_writes_failed = env.writes * 0.1;
+    int writes_failed = 0;
 
     spdlog::info("Writing {} key-value pairs", env.writes);
     RandomGenerator data_gen = RandomGenerator(env.seed);
+    auto start_write_time = std::chrono::high_resolution_clock::now();
     for (size_t write_idx = 0; write_idx < env.writes; write_idx++)
     {
         std::pair<std::string, std::string> entry = data_gen.generate_kv_pair(fluid_opt.entry_size);
@@ -130,6 +267,14 @@ rocksdb::Status run_random_inserts(environment env)
         {
             spdlog::warn("Unable to put key {}", write_idx);
             spdlog::error("{}", status.ToString());
+            writes_failed++;
+            if (writes_failed > max_writes_failed)
+            {
+                spdlog::error("10% of total writes have failed, aborting");
+                db->Close();
+                delete db;
+                exit(EXIT_FAILURE);
+            }
         }
     }
 
@@ -137,8 +282,19 @@ rocksdb::Status run_random_inserts(environment env)
     flush_opt.wait = true;
     db->Flush(flush_opt);
 
-    spdlog::info("Waiting for all remaining compactions to finish before after writes");
     while(fluid_compactor->compactions_left_count > 0);
+
+    // We perform one more flush and wait for any last minute remaining compactions due to RocksDB interntally renaming
+    // SST files during parallel compactions
+    flush_opt.wait = true;
+    db->Flush(flush_opt);
+
+    spdlog::debug("Waiting for all remaining compactions to finish before after writes");
+    while(fluid_compactor->compactions_left_count > 0);
+
+    auto end_write_time = std::chrono::high_resolution_clock::now();
+    auto write_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_write_time - start_write_time);
+    spdlog::info("Write time elapsed : {} us", write_duration.count());
 
     if (spdlog::get_level() <= spdlog::level::debug)
     {
@@ -150,22 +306,20 @@ rocksdb::Status run_random_inserts(environment env)
         int level_idx = 1;
         for (auto & level : cf_meta.levels)
         {
-            std::string level_str = "Level " + std::to_string(level_idx) + " :";
+            std::string level_str = "";
             for (auto & file : level.files)
             {
                 level_str += file.name + ", ";
             }
-            level_str = level_str.substr(0, level_str.size() - 2);
-            spdlog::debug("{}", level_str);
+            level_str = level_str == "" ? "EMPTY" : level_str.substr(0, level_str.size() - 2);
+            spdlog::debug("Level {} : {}", level_idx, level_str);
             level_idx++;
         }
     }
 
-
+    spdlog::info("Finshed writes, closing DB");
     db->Close();
     delete db;
-
-    spdlog::info("Finshed writes, closing DB");
 
     return status;
 }
@@ -194,7 +348,23 @@ int main(int argc, char * argv[])
         spdlog::set_level(spdlog::level::info);
     }
 
-    rocksdb::Status write_status = run_random_inserts(env);
+    if (env.writes > 0)
+    {
+        rocksdb::Status write_status = run_random_inserts(env);
+    }
+
+    if (env.non_empty_reads > 0 || env.empty_reads > 0)
+    {
+        std::vector<std::string> existing_keys = get_all_valid_keys(env);
+        if (env.non_empty_reads > 0)
+        {
+            rocksdb::Status non_empty_read_status = run_random_non_empty_reads(env, existing_keys);
+        }
+        if (env.empty_reads > 0)
+        {
+            rocksdb::Status empty_read_status = run_random_empty_reads(env, existing_keys); 
+        }
+    }
 
     return 0;
 }
