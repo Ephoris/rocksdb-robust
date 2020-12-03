@@ -23,7 +23,7 @@ typedef struct
     size_t empty_reads = 0;
     size_t writes = 0;
 
-    int rocksdb_max_levels = 10;
+    int rocksdb_max_levels = 20;
     int parallelism = 1;
 
     int compaction_readahead_size = 64;
@@ -70,7 +70,6 @@ environment parse_args(int argc, char * argv[])
             % ("Use 2048 for HDD, 64 for flash [default: " + to_string(env.compaction_readahead_size) + "]")
     );
 
-
     auto cli = (
         general_opt,
         execute_opt,
@@ -101,6 +100,7 @@ std::vector<std::string> get_all_valid_keys(environment env)
     rocksdb_opt.error_if_exists = false;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt.compression = rocksdb::kNoCompression;
+    rocksdb_opt.num_levels = env.rocksdb_max_levels;
 
     tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);

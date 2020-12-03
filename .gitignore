@@ -40,3 +40,9 @@ build
 
 # Logs folder
 logs
+
+# MacOS Files
+.DS_Store
+
+# Python Script Cache
+__pycache__

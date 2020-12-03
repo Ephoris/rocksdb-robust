@@ -19,6 +19,7 @@ namespace tmpdb
 
 class FluidCompactor;
 
+
 typedef struct CompactionTask
 {
 rocksdb::DB *db;
@@ -65,10 +66,6 @@ CompactionTask(
 } CompactionTask;
 
 
-/**
- * @brief Abstract class, provides the infrastructure for a Fluid LSM Tree Compactor
- * 
- */
 class FluidCompactor : public ROCKSDB_NAMESPACE::EventListener
 {
 public:
