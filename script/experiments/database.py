@@ -5,6 +5,7 @@ import sys
 
 CREATE_DB_PATH = "../build/db_builder"
 EXECUTE_DB_PATH = "../build/db_runner"
+THREADS = 8
 
 class RocksDBWrapper(object):
 
@@ -26,7 +27,7 @@ class RocksDBWrapper(object):
         cmd = [
             CREATE_DB_PATH,
             self.db_path,
-            '-d' if self.destroy else '',
+            '-d',
             '-T {}'.format(self.T),
             '-K {}'.format(self.K),
             '-Z {}'.format(self.Z),
@@ -34,12 +35,21 @@ class RocksDBWrapper(object):
             '-E {}'.format(self.E),
             '-b {}'.format(self.bpe),
             '-N {}'.format(self.N),
+            '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
 
-        completed_process = subprocess.run(cmd, capture_output=True, universal_newlines=True, shell=True)
+        completed_process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            shell=True,
+            universal_newlines=True
+        ).communicate()[0]
+        # completed_process = subprocess.run(cmd, capture_output=True, universal_newlines=True, shell=True)
+        print(completed_process)
 
-        return completed_process.stdout
+        return completed_process
 
     def run_workload(self, reads, empty_reads, writes):
         cmd = [
@@ -48,6 +58,7 @@ class RocksDBWrapper(object):
             '-e {}'.format(empty_reads),
             '-r {}'.format(reads),
             '-w {}'.format(writes),
+            '-v 2'
         ]
         cmd = ' '.join(cmd)
 

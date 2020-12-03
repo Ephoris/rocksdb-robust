@@ -6,14 +6,14 @@ from experiments.database import RocksDBWrapper
 from experiments.size_ratio_cost import SizeRatioCost
 
 config = {
-    "db_path" : "/Users/ndhuynh/sandbox/tmp",
+    "db_path" : "/scratchNVM4/ndhuynh/tmp",
     "T" : 2,
     "K" : 1,
     "Z" : 1,
-    "B" : 1048576,
+    "B" : 1048576 / 2,
     "E" : 1024,
     "bpe" : 5.0,
-    "N" : 1000000,
+    "N" : 100000,
     "destroy" : True
 }
 
@@ -34,11 +34,13 @@ def init_logger():
 def main():
     log = init_logger()
 
+    db = RocksDBWrapper(**config)
+
     log.info('Welcome to experiment runner')
 
-    log.info('Running Size Ratio Experiment')
-    job = SizeRatioCost(config)
-    job.run(tiering=False)
+    # log.info('Running Size Ratio Experiment')
+    # job = SizeRatioCost(config)
+    # job.run(tiering=False)
 
     return 0
 
