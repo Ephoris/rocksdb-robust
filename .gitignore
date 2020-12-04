@@ -46,6 +46,7 @@ logs
 
 # Python Script Cache
 __pycache__
+.ipynb_checkpoints
 
 # Ignore data directory
 data
