@@ -5,7 +5,7 @@ import sys
 
 CREATE_DB_PATH = "../build/db_builder"
 EXECUTE_DB_PATH = "../build/db_runner"
-THREADS = 8
+THREADS = 4
 
 class RocksDBWrapper(object):
 
@@ -56,13 +56,13 @@ class RocksDBWrapper(object):
             '-e {}'.format(empty_reads),
             '-r {}'.format(reads),
             '-w {}'.format(writes),
-            # '-v 2'
+            '-v2',
         ]
         cmd = ' '.join(cmd)
 
         completed_process = subprocess.Popen(
             cmd,
-            # stdin=subprocess.PIPE,
+            # stdin=None,
             stdout=subprocess.PIPE,
             universal_newlines=True,
             shell=True,

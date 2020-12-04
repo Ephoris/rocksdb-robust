@@ -119,17 +119,17 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         output_file_names
     );
 
-    if (!s.ok() && !s.IsIOError() && task->retry_on_fail)
+    if (!s.ok() && !s.IsIOError() && task->retry_on_fail && !s.IsInvalidArgument())
     {
         // If a compaction task with its retry_on_fail=true failed,
         // try to schedule another compaction in case the reason
         // is not an IO error.
 
-        // spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
-        //     task->origin_level_id + 1,
-        //     task->output_level + 1,
-        //     task->input_file_names.size(),
-        //     s.ToString());
+        spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
+            task->origin_level_id + 1,
+            task->output_level + 1,
+            task->input_file_names.size(),
+            s.ToString());
         CompactionTask *new_task = new CompactionTask(
             task->db,
             task->compactor,

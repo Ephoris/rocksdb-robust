@@ -6,7 +6,7 @@ from experiments.database import RocksDBWrapper
 from experiments.size_ratio_cost import SizeRatioCost
 
 config = {
-    "db_path" : "/Users/ndhuynh/sandbox/tmp",
+    "db_path" : "/scratchNVM4/ndhuynh/tmp",
     "T" : 2,
     "K" : 1,
     "Z" : 1,

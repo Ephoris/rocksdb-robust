@@ -10,7 +10,7 @@ from experiments.database import RocksDBWrapper
 
 EMPTY_READS = 0
 VALID_READS = 0
-WRITES = 100
+WRITES = 5000
 
 class SizeRatioCost(object):
 
