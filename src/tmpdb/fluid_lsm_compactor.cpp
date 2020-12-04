@@ -39,7 +39,9 @@ int FluidLSMCompactor::largest_occupied_level(rocksdb::DB *db) const
 
 CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::string &cf_name, const size_t level_idx)
 {
+    int live_runs;
     int T = this->fluid_opt.size_ratio;
+    int largest_level_idx = this->largest_occupied_level(db);
 
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
@@ -51,6 +53,17 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
         if (file.being_compacted) {continue;}
         input_file_names.push_back(file.name);
     }
+    live_runs = input_file_names.size();
+
+    bool level_1_needs_compact = (((int) level_idx == 0) && (live_runs > this->fluid_opt.size_ratio - 1));
+    bool lower_levels_need_compact = (((int) level_idx < largest_level_idx) && (live_runs > this->fluid_opt.lower_level_run_max));
+    bool last_levels_need_compact = (((int) level_idx == largest_level_idx) && (live_runs > this->fluid_opt.largest_level_run_max));
+
+    if (!level_1_needs_compact && !lower_levels_need_compact && !last_levels_need_compact)
+    {
+        return nullptr;
+    }
+
     size_t level_capacity = (T - 1) * std::pow(T, level_idx + 1) * (this->fluid_opt.buffer_size);
 
     if ((int) level_idx == this->largest_occupied_level(db)) //> Last level we restrict number of runs to Z
@@ -66,40 +79,25 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
     this->rocksdb_compact_opt.output_file_size_limit *= 1.05;
 
     return new CompactionTask(
-        db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, true, false);
+        db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, false, false);
 }
 
 
 void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPACE::FlushJobInfo &info)
 {
-    rocksdb::ColumnFamilyMetaData cf_meta;
-    db->GetColumnFamilyMetaData(&cf_meta);
-
     int largest_level_idx = this->largest_occupied_level(db);
-    int live_runs;
 
     for (int level_idx = largest_level_idx; level_idx > -1; level_idx--)
     {
-        live_runs = 0;
-        for (auto &run : cf_meta.levels[level_idx].files)
-        {
-            if (run.being_compacted) {continue;}
-            live_runs++;
-        }
-
-        bool level_1_needs_compact = ((level_idx == 0) && (live_runs > this->fluid_opt.size_ratio - 1));
-        bool lower_levels_need_compact = ((level_idx < largest_level_idx) && (live_runs > this->fluid_opt.lower_level_run_max));
-        bool last_levels_need_compact = ((level_idx == largest_level_idx) && (live_runs > this->fluid_opt.largest_level_run_max));
-
-        if (!level_1_needs_compact && !lower_levels_need_compact && !last_levels_need_compact) {continue;}
-
         CompactionTask *task = PickCompaction(db, info.cf_name, level_idx);
 
         if (!task) {continue;}
 
-        task->retry_on_fail = info.triggered_writes_stop;
+        task->retry_on_fail = info.triggered_writes_slowdown;
         ScheduleCompaction(task);
     }
+
+    return;
 }
 
 

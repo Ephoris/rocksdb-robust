@@ -11,6 +11,7 @@
 #include "rocksdb/options.h"
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
+#include "rocksdb/env.h"
 
 #include "tmpdb/fluid_lsm_compactor.hpp"
 #include "infrastructure/data_generator.hpp"
@@ -274,6 +275,7 @@ int run_random_inserts(environment env)
     // finish up first by slowing down the write speed
     rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio;
     rocksdb_opt.level0_stop_writes_trigger = fluid_opt.size_ratio + 2;
+    rocksdb_opt.info_log_level = rocksdb::ERROR_LEVEL;
 
     rocksdb_opt.max_bytes_for_level_base = fluid_opt.size_ratio * fluid_opt.buffer_size;
     rocksdb_opt.max_bytes_for_level_multiplier = fluid_opt.size_ratio;
