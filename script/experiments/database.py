@@ -20,7 +20,7 @@ class RocksDBWrapper(object):
         self.N = N  # Number of entries
         self.destroy = destroy  # destroy DB is exist in path
 
-        self.time_prog = re.compile(r'\[[0-9:.]+\] \[info\] \(w, z1, z0\) : \((\d+), (\d+), (\d+)\)')
+        self.time_prog = re.compile(r'\[[0-9:.]+\] \[info\] \(w, z1, z0\) : \((-?\d+), (-?\d+), (-?\d+)\)')
         self._create_db()
 
     def _create_db(self):
@@ -31,7 +31,7 @@ class RocksDBWrapper(object):
             '-T {}'.format(self.T),
             '-K {}'.format(self.K),
             '-Z {}'.format(self.Z),
-            '-B {}'.format(self.B),
+            '-B {}'.format(int(self.B)),
             '-E {}'.format(self.E),
             '-b {}'.format(self.bpe),
             '-N {}'.format(self.N),
@@ -41,13 +41,11 @@ class RocksDBWrapper(object):
 
         completed_process = subprocess.Popen(
             cmd,
-            stdin=subprocess.PIPE,
+            # stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            universal_newlines=True,
             shell=True,
-            universal_newlines=True
         ).communicate()[0]
-        # completed_process = subprocess.run(cmd, capture_output=True, universal_newlines=True, shell=True)
-        print(completed_process)
 
         return completed_process
 
@@ -58,11 +56,18 @@ class RocksDBWrapper(object):
             '-e {}'.format(empty_reads),
             '-r {}'.format(reads),
             '-w {}'.format(writes),
-            '-v 2'
+            # '-v 2'
         ]
         cmd = ' '.join(cmd)
 
-        completed_process = subprocess.run(cmd, capture_output=True, universal_newlines=True, shell=True)
-        time_results = self.time_prog.search(completed_process.stdout)
+        completed_process = subprocess.Popen(
+            cmd,
+            # stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            universal_newlines=True,
+            shell=True,
+        ).communicate()[0]
+
+        time_results = self.time_prog.search(completed_process)
 
         return (int(result) for result in time_results.groups())

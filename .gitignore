@@ -46,3 +46,6 @@ logs
 
 # Python Script Cache
 __pycache__
+
+# Ignore data directory
+data
