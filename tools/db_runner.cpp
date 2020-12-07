@@ -340,17 +340,17 @@ int run_random_inserts(environment env)
         usleep(1000);
     }
 
-    // We perform one more flush and wait for any last minute remaining compactions due to RocksDB interntally renaming
-    // SST files during parallel compactions
-    spdlog::debug("Performing 1 more additional flush");
-    flush_opt.wait = true;
-    db->Flush(flush_opt);
+    // // We perform one more flush and wait for any last minute remaining compactions due to RocksDB interntally renaming
+    // // SST files during parallel compactions
+    // spdlog::debug("Performing 1 more additional flush");
+    // flush_opt.wait = true;
+    // db->Flush(flush_opt);
 
-    while(fluid_compactor->compactions_left_count > 0)
-    {
-        spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
-        usleep(1000);
-    }
+    // while(fluid_compactor->compactions_left_count > 0)
+    // {
+    //     spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
+    //     usleep(1000);
+    // }
 
     auto end_write_time = std::chrono::high_resolution_clock::now();
     auto write_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_write_time - start_write_time);

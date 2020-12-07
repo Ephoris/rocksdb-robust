@@ -55,17 +55,15 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
     }
     live_runs = input_file_names.size();
 
-    bool level_1_needs_compact = (((int) level_idx == 0) && (live_runs > this->fluid_opt.size_ratio - 1));
     bool lower_levels_need_compact = (((int) level_idx < largest_level_idx) && (live_runs > this->fluid_opt.lower_level_run_max));
     bool last_levels_need_compact = (((int) level_idx == largest_level_idx) && (live_runs > this->fluid_opt.largest_level_run_max));
 
-    if (!level_1_needs_compact && !lower_levels_need_compact && !last_levels_need_compact)
+    if (!lower_levels_need_compact && !last_levels_need_compact)
     {
         return nullptr;
     }
 
     size_t level_capacity = (T - 1) * std::pow(T, level_idx + 1) * (this->fluid_opt.buffer_size);
-
     if ((int) level_idx == this->largest_occupied_level(db)) //> Last level we restrict number of runs to Z
     {
         this->rocksdb_compact_opt.output_file_size_limit = static_cast<uint64_t>(level_capacity) / this->fluid_opt.largest_level_run_max;
@@ -86,6 +84,9 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
 void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPACE::FlushJobInfo &info)
 {
     int largest_level_idx = this->largest_occupied_level(db);
+
+    // We will wait for any remaining compactions to finish before scheduling another to prevent invalid files
+    while (this->compactions_left_count > 0);
 
     for (int level_idx = largest_level_idx; level_idx > -1; level_idx--)
     {

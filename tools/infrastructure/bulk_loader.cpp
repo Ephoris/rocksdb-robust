@@ -152,9 +152,8 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
     // TODO : Want to work on something better to compensate for meta data
     // We add an extra 5% to size per output file size in order to compensate for meta-data
     this->rocksdb_compact_opt.output_file_size_limit = 
-        static_cast<uint64_t>(
             static_cast<uint64_t>(entries_per_run) *
-            static_cast<uint64_t>(this->fluid_opt.entry_size) * 1.05);
+            static_cast<uint64_t>(static_cast<uint64_t>(this->fluid_opt.entry_size) * 1.05);
 
     tmpdb::CompactionTask *task = new tmpdb::CompactionTask(
         db, this, "default", file_names, level_idx, this->rocksdb_compact_opt, 0, true, false);
