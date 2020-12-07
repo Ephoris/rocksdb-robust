@@ -10,7 +10,7 @@ from experiments.database import RocksDBWrapper
 
 EMPTY_READS = 0
 VALID_READS = 0
-WRITES = 5000
+WRITES = 10000
 
 class SizeRatioCost(object):
 
@@ -24,8 +24,9 @@ class SizeRatioCost(object):
     def run(self, tiering=False):
 
         local_cfg = copy.deepcopy(self.config)
-        size_ratios = [2, 4, 6, 8, 10, 12, 16, 24, 32, 50, 64, 100]
-        # size_ratios = list(range(2, 101))
+        # size_ratios = [2, 4, 6, 8, 10, 12, 16, 24, 32, 50, 64, 100]
+        size_ratios = list(range(2, 202, 2))
+        # size_ratios = list(range(100, 151, 5))
 
         time_results = []
         for T in size_ratios:

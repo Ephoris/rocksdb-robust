@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import subprocess
@@ -19,6 +20,7 @@ class RocksDBWrapper(object):
         self.bpe = bpe  # Bits per entry for bloom filter
         self.N = N  # Number of entries
         self.destroy = destroy  # destroy DB is exist in path
+        self.log = logging.getLogger('exp_logger')
 
         self.time_prog = re.compile(r'\[[0-9:.]+\] \[info\] \(w, z1, z0\) : \((-?\d+), (-?\d+), (-?\d+)\)')
         self._create_db()
@@ -38,6 +40,7 @@ class RocksDBWrapper(object):
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
+        self.log.info(cmd)
 
         completed_process = subprocess.Popen(
             cmd,
@@ -56,9 +59,11 @@ class RocksDBWrapper(object):
             '-e {}'.format(empty_reads),
             '-r {}'.format(reads),
             '-w {}'.format(writes),
-            '-v2',
+            # '-v2',
+            '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
+        self.log.info(cmd)
 
         completed_process = subprocess.Popen(
             cmd,
