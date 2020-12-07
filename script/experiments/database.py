@@ -10,7 +10,7 @@ THREADS = 4
 
 class RocksDBWrapper(object):
 
-    def __init__(self, db_path, T, K, Z, B, E, bpe, N, destroy=True):
+    def __init__(self, db_path, T, K, Z, B, E, bpe, L, destroy=True):
         self.db_path = db_path
         self.T = T  # Size ratio
         self.K = K  # Lower level size ratio
@@ -18,7 +18,7 @@ class RocksDBWrapper(object):
         self.B = B  # Buffer size (bytes)
         self.E = E  # Entry size (bytes)
         self.bpe = bpe  # Bits per entry for bloom filter
-        self.N = N  # Number of entries
+        self.L = L  # Number of eLtries
         self.destroy = destroy  # destroy DB is exist in path
         self.log = logging.getLogger('exp_logger')
 
@@ -36,7 +36,7 @@ class RocksDBWrapper(object):
             '-B {}'.format(int(self.B)),
             '-E {}'.format(self.E),
             '-b {}'.format(self.bpe),
-            '-N {}'.format(self.N),
+            '-L {}'.format(self.L),
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)

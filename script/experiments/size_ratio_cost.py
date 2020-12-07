@@ -24,9 +24,7 @@ class SizeRatioCost(object):
     def run(self, tiering=False):
 
         local_cfg = copy.deepcopy(self.config)
-        # size_ratios = [2, 4, 6, 8, 10, 12, 16, 24, 32, 50, 64, 100]
-        size_ratios = list(range(2, 202, 2))
-        # size_ratios = list(range(100, 151, 5))
+        size_ratios = [2, 4, 6, 8, 10]
 
         time_results = []
         for T in size_ratios:
@@ -46,7 +44,7 @@ class SizeRatioCost(object):
                     "B" : local_cfg['B'],
                     "E" : local_cfg['E'],
                     "bpe" : local_cfg['bpe'],
-                    "N" : local_cfg['N'],
+                    "L" : local_cfg['L'],
                     'write_time' : write_time,
                     'num_writes' : WRITES,
                     'non_empty_read_time' : valid_read_time,
