@@ -89,11 +89,7 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load(
         if (capacity_per_level[level_idx] == 0) { continue; }
         spdlog::debug("Bulk loading level {} with {} entries.", level, capacity_per_level[level_idx]);
 
-        if (level_idx == 0)
-        {
-            num_runs = this->fluid_opt.size_ratio - 1;
-        }
-        else if (level == num_levels) //> Last level has Z max runs
+        if (level == num_levels) //> Last level has Z max runs
         {
             num_runs = this->fluid_opt.largest_level_run_max;
         }

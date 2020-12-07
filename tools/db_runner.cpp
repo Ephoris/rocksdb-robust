@@ -257,6 +257,7 @@ int run_random_inserts(environment env)
     rocksdb_opt.error_if_exists = false;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt.compression = rocksdb::kNoCompression;
+    rocksdb_opt.info_log_level = rocksdb::ERROR_LEVEL;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     rocksdb_opt.write_buffer_size = fluid_opt.buffer_size; //> "Level 0" or the in memory buffer
@@ -275,7 +276,6 @@ int run_random_inserts(environment env)
     // finish up first by slowing down the write speed
     rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio;
     rocksdb_opt.level0_stop_writes_trigger = fluid_opt.size_ratio + 2;
-    rocksdb_opt.info_log_level = rocksdb::ERROR_LEVEL;
 
     rocksdb_opt.max_bytes_for_level_base = fluid_opt.size_ratio * fluid_opt.buffer_size;
     rocksdb_opt.max_bytes_for_level_multiplier = fluid_opt.size_ratio;
