@@ -158,6 +158,8 @@ void build_db(environment & env)
     rocksdb_opt.disable_auto_compactions = true;
     rocksdb_opt.write_buffer_size = env.B; 
     rocksdb_opt.num_levels = env.max_rocksdb_levels;
+    // Prevents rocksdb from limiting file size
+    rocksdb_opt.target_file_size_base = UINT64_MAX;
 
     fill_fluid_opt(env, fluid_opt);
     RandomGenerator gen(env.seed);

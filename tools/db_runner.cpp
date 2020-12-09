@@ -267,6 +267,9 @@ int run_random_inserts(environment env)
     rocksdb_opt.max_open_files = env.max_open_files;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
+    // Prevents rocksdb from limiting file size
+    rocksdb_opt.target_file_size_base = UINT64_MAX;
+
     // Note that level 0 in RocksDB is traditionally level 1 in an LSM model. The write buffer is what we normally would
     // label as level 0. Here we want level 1 to contain T sst files before trigger a compaction. Need to test whether
     // this mattesrs given our custom compaction listener
@@ -276,9 +279,6 @@ int run_random_inserts(environment env)
     // finish up first by slowing down the write speed
     rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio;
     rocksdb_opt.level0_stop_writes_trigger = fluid_opt.size_ratio + 2;
-
-    rocksdb_opt.max_bytes_for_level_base = fluid_opt.size_ratio * fluid_opt.buffer_size;
-    rocksdb_opt.max_bytes_for_level_multiplier = fluid_opt.size_ratio;
 
     tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
