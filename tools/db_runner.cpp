@@ -183,8 +183,8 @@ int run_random_non_empty_reads(environment env, std::vector<std::string> existin
         status = db->Get(read_opt, existing_keys[dist(engine)], &value);
     }
     auto non_empty_read_end = std::chrono::high_resolution_clock::now();
-    auto non_empty_read_duration = std::chrono::duration_cast<std::chrono::microseconds>(non_empty_read_end - non_empty_read_start);
-    spdlog::info("Non empty read time elapsed : {} us", non_empty_read_duration.count());
+    auto non_empty_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(non_empty_read_end - non_empty_read_start);
+    spdlog::info("Non empty read time elapsed : {} ms", non_empty_read_duration.count());
 
     db->Close();
     delete db;
@@ -237,8 +237,8 @@ int run_random_empty_reads(environment env)
         status = db->Get(read_opt, std::to_string(dist(engine)), &value);
     }
     auto empty_read_end = std::chrono::high_resolution_clock::now();
-    auto empty_read_duration = std::chrono::duration_cast<std::chrono::microseconds>(empty_read_end - empty_read_start);
-    spdlog::info("Empty read time elapsed : {} us", empty_read_duration.count());
+    auto empty_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(empty_read_end - empty_read_start);
+    spdlog::info("Empty read time elapsed : {} ms", empty_read_duration.count());
 
     db->Close();
     delete db;
@@ -353,8 +353,8 @@ int run_random_inserts(environment env)
     // }
 
     auto end_write_time = std::chrono::high_resolution_clock::now();
-    auto write_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_write_time - start_write_time);
-    spdlog::info("Write time elapsed : {} us", write_duration.count());
+    auto write_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_write_time - start_write_time);
+    spdlog::info("Write time elapsed : {} ms", write_duration.count());
 
     if (spdlog::get_level() <= spdlog::level::debug)
     {
