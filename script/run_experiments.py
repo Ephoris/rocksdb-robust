@@ -13,7 +13,7 @@ config = {
     "B" : 1048576,
     "E" : 1024,
     "bpe" : 5.0,
-    "L" : 4,
+    "L" : 2,
     "destroy" : True
 }
 
@@ -41,7 +41,7 @@ def main():
 
     log.info('Running Size Ratio Experiment')
     job = SizeRatioCost(config)
-    job.run(tiering=False)
+    job.run(tiering=True)
 
     return 0
 

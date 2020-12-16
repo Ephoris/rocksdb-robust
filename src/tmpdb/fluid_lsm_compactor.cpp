@@ -86,7 +86,7 @@ void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPAC
     int largest_level_idx = this->largest_occupied_level(db);
 
     // We will wait for any remaining compactions to finish before scheduling another to prevent invalid files
-    while (this->compactions_left_count > 0);
+    // while (this->compactions_left_count > 0);
 
     for (int level_idx = largest_level_idx; level_idx > -1; level_idx--)
     {
@@ -124,11 +124,11 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         // try to schedule another compaction in case the reason
         // is not an IO error.
 
-        spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
-            task->origin_level_id + 1,
-            task->output_level + 1,
-            task->input_file_names.size(),
-            s.ToString());
+        // spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
+        //     task->origin_level_id + 1,
+        //     task->output_level + 1,
+        //     task->input_file_names.size(),
+        //     s.ToString());
         CompactionTask *new_task = new CompactionTask(
             task->db,
             task->compactor,

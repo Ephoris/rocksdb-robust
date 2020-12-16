@@ -25,7 +25,7 @@ typedef struct
     size_t empty_reads = 0;
     size_t writes = 0;
 
-    int rocksdb_max_levels = 20;
+    int rocksdb_max_levels = 35;
     int parallelism = 1;
 
     int compaction_readahead_size = 64;
@@ -257,7 +257,6 @@ int run_random_inserts(environment env)
     rocksdb_opt.error_if_exists = false;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt.compression = rocksdb::kNoCompression;
-    rocksdb_opt.info_log_level = rocksdb::ERROR_LEVEL;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     rocksdb_opt.write_buffer_size = fluid_opt.buffer_size; //> "Level 0" or the in memory buffer
@@ -277,8 +276,8 @@ int run_random_inserts(environment env)
 
     // Number of files in level 0 to slow down writes. Since we're prioritizing compactions we will wait for those to
     // finish up first by slowing down the write speed
-    rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio;
-    rocksdb_opt.level0_stop_writes_trigger = fluid_opt.size_ratio + 2;
+    rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio * 2;
+    rocksdb_opt.level0_stop_writes_trigger = fluid_opt.size_ratio * 3;
 
     tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
@@ -299,7 +298,7 @@ int run_random_inserts(environment env)
 
     rocksdb::WriteOptions write_opt;
     write_opt.sync = false; //> make every write wait for sync with log (so we see real perf impact of insert)
-    write_opt.low_pri = true; //> every insert is less important than compaction
+    write_opt.low_pri = false; //> every insert is less important than compaction
     write_opt.disableWAL = true; 
     write_opt.no_slowdown = false; //> enabling this will make some insertions fail
 

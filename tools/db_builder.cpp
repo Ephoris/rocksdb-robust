@@ -31,7 +31,7 @@ typedef struct
     int verbose = 0;
     bool destroy_db = false;
 
-    int max_rocksdb_levels = 20;
+    int max_rocksdb_levels = 35;
     int parallelism = 1;
 
     int seed = std::time(nullptr); 
