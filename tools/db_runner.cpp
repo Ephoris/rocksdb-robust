@@ -261,9 +261,10 @@ int run_random_inserts(environment env)
 
     rocksdb_opt.write_buffer_size = fluid_opt.buffer_size; //> "Level 0" or the in memory buffer
     rocksdb_opt.num_levels = env.rocksdb_max_levels;
-    rocksdb_opt.compaction_readahead_size = 1024 * env.compaction_readahead_size;
+    // rocksdb_opt.compaction_readahead_size = 1024 * env.compaction_readahead_size;
+    rocksdb_opt.use_direct_reads = true;
     rocksdb_opt.use_direct_io_for_flush_and_compaction = true;
-    rocksdb_opt.max_open_files = env.max_open_files;
+    // rocksdb_opt.max_open_files = env.max_open_files;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     // Prevents rocksdb from limiting file size
@@ -272,12 +273,12 @@ int run_random_inserts(environment env)
     // Note that level 0 in RocksDB is traditionally level 1 in an LSM model. The write buffer is what we normally would
     // label as level 0. Here we want level 1 to contain T sst files before trigger a compaction. Need to test whether
     // this mattesrs given our custom compaction listener
-    rocksdb_opt.level0_file_num_compaction_trigger = fluid_opt.size_ratio;
+    rocksdb_opt.level0_file_num_compaction_trigger = fluid_opt.lower_level_run_max + 1;
 
     // Number of files in level 0 to slow down writes. Since we're prioritizing compactions we will wait for those to
     // finish up first by slowing down the write speed
-    rocksdb_opt.level0_slowdown_writes_trigger = fluid_opt.size_ratio * 2;
-    rocksdb_opt.level0_stop_writes_trigger = fluid_opt.size_ratio * 3;
+    rocksdb_opt.level0_slowdown_writes_trigger = 2 * (fluid_opt.lower_level_run_max + 1);
+    rocksdb_opt.level0_stop_writes_trigger = 3 * (fluid_opt.lower_level_run_max + 1);
 
     tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
@@ -327,29 +328,31 @@ int run_random_inserts(environment env)
         }
     }
 
+    // We perform one more flush and wait for any last minute remaining compactions due to RocksDB interntally renaming
+    // SST files during parallel compactions
     spdlog::debug("Flushing DB...");
     rocksdb::FlushOptions flush_opt;
     flush_opt.wait = true;
     db->Flush(flush_opt);
 
-    spdlog::debug("Waiting for all remaining compactions to finish before after writes");
+    spdlog::debug("Waiting for all remaining background compactions to finish before after writes");
     while(fluid_compactor->compactions_left_count > 0)
     {
         spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
         usleep(1000);
     }
 
-    // // We perform one more flush and wait for any last minute remaining compactions due to RocksDB interntally renaming
-    // // SST files during parallel compactions
-    // spdlog::debug("Performing 1 more additional flush");
-    // flush_opt.wait = true;
-    // db->Flush(flush_opt);
-
-    // while(fluid_compactor->compactions_left_count > 0)
-    // {
-    //     spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
-    //     usleep(1000);
-    // }
+    spdlog::debug("Checking final state of the tree and if it requires any compactions...");
+    while(fluid_compactor->requires_compaction(db))
+    {
+        spdlog::debug("Requires compaction");
+        while(fluid_compactor->compactions_left_count > 0)
+        {
+            spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
+            usleep(1000);
+        }
+        usleep(1000);
+    }
 
     auto end_write_time = std::chrono::high_resolution_clock::now();
     auto write_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_write_time - start_write_time);

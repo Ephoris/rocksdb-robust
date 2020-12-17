@@ -145,9 +145,7 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         return;
     }
 
-    // ((FluidLSMCompactor *) task->compactor)->compactions_left_mutex.lock();
     ((FluidLSMCompactor *) task->compactor)->compactions_left_count--;
-    // ((FluidLSMCompactor *) task->compactor)->compactions_left_mutex.unlock();
     spdlog::trace("CompactFiles level {} -> {} finished with status : {}", task->origin_level_id + 1, task->output_level + 1, s.ToString());
 
     return;
@@ -158,9 +156,7 @@ void FluidLSMCompactor::ScheduleCompaction(CompactionTask *task)
 {
     if (!task->is_a_retry)
     {
-        // this->compactions_left_mutex.lock();
         this->compactions_left_count++;
-        // this->compactions_left_mutex.unlock();
     }
     this->rocksdb_opt.env->Schedule(&FluidLSMCompactor::CompactFiles, task);
 
@@ -179,4 +175,22 @@ size_t FluidLSMCompactor::estimate_levels(size_t N, double T, size_t E, size_t B
     size_t estimated_levels = std::ceil(std::log((N * E / B) + 1) / std::log(T));
 
     return estimated_levels;
+}
+
+bool FluidLSMCompactor::requires_compaction(rocksdb::DB *db)
+{
+    int largest_level_idx = this->largest_occupied_level(db);
+    bool task_scheduled = false;
+
+    for (int level_idx = largest_level_idx; level_idx > -1; level_idx--)
+    {
+        CompactionTask *task = PickCompaction(db, "default", level_idx);
+
+        if (!task) {continue;}
+
+        ScheduleCompaction(task);
+        task_scheduled = true;
+    }
+
+    return task_scheduled;
 }

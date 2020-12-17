@@ -157,6 +157,9 @@ public:
      */
     void ScheduleCompaction(CompactionTask *task) override;
 
+
+    bool requires_compaction(rocksdb::DB *db);
+
     /**
      * @brief Estimates the number of levels needed based on
      * 
