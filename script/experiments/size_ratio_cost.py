@@ -11,6 +11,7 @@ from experiments.database import RocksDBWrapper
 EMPTY_READS = 0
 VALID_READS = 0
 WRITES = 5000000
+# WRITES = 10000
 
 class SizeRatioCost(object):
 
@@ -24,8 +25,8 @@ class SizeRatioCost(object):
     def run(self, tiering=False):
 
         local_cfg = copy.deepcopy(self.config)
-        size_ratios = list(range(2, 50))
-        local_cfg['L'] = 4
+        size_ratios = list(range(2, 31))
+        local_cfg['L'] = 3
 
         time_results = []
         for T in size_ratios:
@@ -34,8 +35,6 @@ class SizeRatioCost(object):
             local_cfg['K'] = T - 1 if tiering else 1
             local_cfg['Z'] = T - 1 if tiering else 1
             if (T == 16):
-                local_cfg['L'] = 3
-            elif (T == 41):
                 local_cfg['L'] = 2
 
             db = RocksDBWrapper(**local_cfg)
