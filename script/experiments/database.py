@@ -40,7 +40,7 @@ class RocksDBWrapper(object):
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
-        self.log.info(cmd)
+        # self.log.info(cmd)
 
         completed_process = subprocess.Popen(
             cmd,
@@ -59,11 +59,10 @@ class RocksDBWrapper(object):
             '-e {}'.format(empty_reads),
             '-r {}'.format(reads),
             '-w {}'.format(writes),
-            # '-v2',
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
-        self.log.info(cmd)
+        # self.log.info(cmd)
 
         completed_process = subprocess.Popen(
             cmd,

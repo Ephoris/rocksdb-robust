@@ -4,14 +4,15 @@ import os
 import subprocess
 import sys
 
+import numpy as np
 import pandas as pd
 
 from experiments.database import RocksDBWrapper
 
 EMPTY_READS = 0
 VALID_READS = 0
-WRITES = 5000000
-# WRITES = 10000
+WRITES = 50
+RUNS = 5
 
 class SizeRatioCost(object):
 
@@ -25,41 +26,47 @@ class SizeRatioCost(object):
     def run(self, tiering=False):
 
         local_cfg = copy.deepcopy(self.config)
-        size_ratios = list(range(2, 31))
+        size_ratios = list(range(2, 10))
         local_cfg['L'] = 3
 
         time_results = []
+
         for T in size_ratios:
-            self.log.info('Running workloads with T = %d', T)
-            local_cfg['T'] = T
-            local_cfg['K'] = T - 1 if tiering else 1
-            local_cfg['Z'] = T - 1 if tiering else 1
-            if (T == 16):
-                local_cfg['L'] = 2
+            self.log.info('Size ratio T = %d', T)
+            result = {}
+            result['T'] = T,
+            result['K'] = local_cfg['K']
+            result['Z'] = local_cfg['Z']
+            result["B"] = local_cfg['B']
+            result["E"] = local_cfg['E']
+            result["bpe"] = local_cfg['bpe']
+            result["L"] = local_cfg['L']
+            result['num_writes'] = WRITES
+            result['num_non_empty_reads'] = VALID_READS
+            result['num_empty_reads'] = EMPTY_READS
 
-            db = RocksDBWrapper(**local_cfg)
-            (write_time, valid_read_time, empty_read_time) = db.run_workload(VALID_READS, EMPTY_READS, WRITES)
+            for run in range(RUNS):
+                local_cfg['T'] = T
+                local_cfg['K'] = T - 1 if tiering else 1
+                local_cfg['Z'] = T - 1 if tiering else 1
+                # if (T == 16):
+                #     local_cfg['L'] = 2
 
-            time_results.append(
-                {
-                    'T' : T,
-                    'K' : local_cfg['K'],
-                    'Z' : local_cfg['Z'],
-                    "B" : local_cfg['B'],
-                    "E" : local_cfg['E'],
-                    "bpe" : local_cfg['bpe'],
-                    "L" : local_cfg['L'],
-                    'write_time' : write_time,
-                    'num_writes' : WRITES,
-                    'non_empty_read_time' : valid_read_time,
-                    'num_non_empty_reads' : VALID_READS,
-                    'empty_read_time' : empty_read_time,
-                    'num_empty_reads' : EMPTY_READS,
-                }
-            )
-            self.log.info('Time (w, z1, z0) : (%d, %d, %d)', write_time, valid_read_time, empty_read_time)
-            del db
+                db = RocksDBWrapper(**local_cfg)
+                (write_time, valid_read_time, empty_read_time) = db.run_workload(VALID_READS, EMPTY_READS, WRITES)
+
+                result['write_time_' + str(run)] = write_time
+                result['valid_read_time_' + str(run)] = valid_read_time
+                result['empty_read_time_' + str(run)] = empty_read_time
+
+                self.log.info('Run %d : Time (w, z1, z0) : (%d, %d, %d)', run + 1, write_time, valid_read_time, empty_read_time)
+                del db
+
+            result['write_time'] = np.average([result['write_time_' + str(run)] for run in range(RUNS)])
+            result['valid_read_time'] = np.average([result['valid_read_time_' + str(run)] for run in range(RUNS)])
+            result['empty_read_time'] = np.average([result['empty_read_time_' + str(run)] for run in range(RUNS)])
+            self.log.info('Averages : Time (w, z1, z0) : (%d, %d, %d)', result['write_time'], result['valid_read_time'], result['empty_read_time'])
+            time_results.append(result)
 
         df = pd.DataFrame(time_results)
         df.to_csv('size_ratio_cost.csv', index=False)
-
