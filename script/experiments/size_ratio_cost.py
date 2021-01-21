@@ -33,8 +33,14 @@ class SizeRatioCost(object):
 
         for T in size_ratios:
             self.log.info('Size ratio T = %d', T)
+            local_cfg['T'] = T
+            local_cfg['K'] = T - 1 if tiering else 1
+            local_cfg['Z'] = T - 1 if tiering else 1
+            if (T == 16):
+                local_cfg['L'] = 2
+
             result = {}
-            result['T'] = T,
+            result['T'] = T
             result['K'] = local_cfg['K']
             result['Z'] = local_cfg['Z']
             result["B"] = local_cfg['B']
@@ -44,12 +50,6 @@ class SizeRatioCost(object):
             result['num_writes'] = WRITES
             result['num_non_empty_reads'] = VALID_READS
             result['num_empty_reads'] = EMPTY_READS
-
-            local_cfg['T'] = T
-            local_cfg['K'] = T - 1 if tiering else 1
-            local_cfg['Z'] = T - 1 if tiering else 1
-            if (T == 16):
-                local_cfg['L'] = 2
 
             for run in range(RUNS):
                 db = RocksDBWrapper(**local_cfg)
