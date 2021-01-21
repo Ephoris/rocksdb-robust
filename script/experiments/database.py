@@ -6,7 +6,7 @@ import sys
 
 CREATE_DB_PATH = "../build/db_builder"
 EXECUTE_DB_PATH = "../build/db_runner"
-THREADS = 4
+THREADS = 8
 
 class RocksDBWrapper(object):
 
@@ -40,6 +40,7 @@ class RocksDBWrapper(object):
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
+        self.log.info("Creating DB...")
         # self.log.info(cmd)
 
         completed_process = subprocess.Popen(
@@ -62,6 +63,7 @@ class RocksDBWrapper(object):
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
+        self.log.info("Running workload...")
         # self.log.info(cmd)
 
         completed_process = subprocess.Popen(

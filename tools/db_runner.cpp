@@ -30,7 +30,7 @@ typedef struct
 
     int compaction_readahead_size = 64;
     int seed = std::time(nullptr);
-    int max_open_files = 128;
+    int max_open_files = 512;
 
     std::string write_out_path;
     bool write_out = false;
@@ -264,7 +264,7 @@ int run_random_inserts(environment env)
     // rocksdb_opt.compaction_readahead_size = 1024 * env.compaction_readahead_size;
     rocksdb_opt.use_direct_reads = true;
     rocksdb_opt.use_direct_io_for_flush_and_compaction = true;
-    // rocksdb_opt.max_open_files = env.max_open_files;
+    rocksdb_opt.max_open_files = env.max_open_files;
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     // Prevents rocksdb from limiting file size
@@ -333,6 +333,8 @@ int run_random_inserts(environment env)
     spdlog::debug("Flushing DB...");
     rocksdb::FlushOptions flush_opt;
     flush_opt.wait = true;
+    flush_opt.allow_write_stall = true;
+
     db->Flush(flush_opt);
 
     spdlog::debug("Waiting for all remaining background compactions to finish before after writes");
@@ -353,6 +355,7 @@ int run_random_inserts(environment env)
         }
         usleep(1000);
     }
+
 
     auto end_write_time = std::chrono::high_resolution_clock::now();
     auto write_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_write_time - start_write_time);

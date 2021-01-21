@@ -9,10 +9,10 @@ import pandas as pd
 
 from experiments.database import RocksDBWrapper
 
-EMPTY_READS = 0
-VALID_READS = 0
-WRITES = 50
-RUNS = 5
+EMPTY_READS = 5000000
+VALID_READS = 5000000
+WRITES = 5000000
+RUNS = 1
 
 class SizeRatioCost(object):
 
@@ -26,7 +26,7 @@ class SizeRatioCost(object):
     def run(self, tiering=False):
 
         local_cfg = copy.deepcopy(self.config)
-        size_ratios = list(range(2, 10))
+        size_ratios = list(range(2, 29))
         local_cfg['L'] = 3
 
         time_results = []
@@ -45,13 +45,13 @@ class SizeRatioCost(object):
             result['num_non_empty_reads'] = VALID_READS
             result['num_empty_reads'] = EMPTY_READS
 
-            for run in range(RUNS):
-                local_cfg['T'] = T
-                local_cfg['K'] = T - 1 if tiering else 1
-                local_cfg['Z'] = T - 1 if tiering else 1
-                # if (T == 16):
-                #     local_cfg['L'] = 2
+            local_cfg['T'] = T
+            local_cfg['K'] = T - 1 if tiering else 1
+            local_cfg['Z'] = T - 1 if tiering else 1
+            if (T == 16):
+                local_cfg['L'] = 2
 
+            for run in range(RUNS):
                 db = RocksDBWrapper(**local_cfg)
                 (write_time, valid_read_time, empty_read_time) = db.run_workload(VALID_READS, EMPTY_READS, WRITES)
 
