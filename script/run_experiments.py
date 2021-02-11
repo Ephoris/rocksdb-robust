@@ -4,16 +4,17 @@ import sys
 
 from experiments.database import RocksDBWrapper
 from experiments.size_ratio_cost import SizeRatioCost
+from experiments.bpe_cost import BPECost
 
 config = {
-    "db_path" : "/tmp/rocksdb",
-    "T" : 2,
-    "K" : 1,
-    "Z" : 1,
-    "B" : 1048576 / 4,
+    "db_path" : "/scratchNVM5/ndhuynh/tmp",
+    "T" : 10,
+    "K" : 9,
+    "Z" : 9,
+    "B" : 1048576 * 8,
     "E" : 1024,
-    "bpe" : 5.0,
-    "L" : 2,
+    "bpe" : 9.0,
+    "L" : 3,
     "destroy" : True
 }
 
@@ -32,12 +33,17 @@ def init_logger():
 
 
 def main():
+    tiering = False
+
     log = init_logger()
     log.info('Welcome to experiment runner')
 
-    log.info('Running Size Ratio Experiment')
-    job = SizeRatioCost(config)
-    job.run(tiering=True)
+    # jobs = [SizeRatioCost, BPECost]
+    jobs = [BPECost]
+    for job_obj in jobs:
+        job = job_obj(config)
+        log.info("Running %s", job.name())
+        job.run(tiering)
 
     return 0
 
