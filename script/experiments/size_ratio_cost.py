@@ -34,7 +34,7 @@ class SizeRatioCost(object):
         for T in size_ratios:
             self.log.info('Size ratio T = %d', T)
             result = {}
-            result['T'] = T,
+            result['T'] = T
             result['K'] = local_cfg['K']
             result['Z'] = local_cfg['Z']
             result["B"] = local_cfg['B']
