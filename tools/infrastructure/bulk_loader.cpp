@@ -123,19 +123,11 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
 
     for (size_t run_idx = 0; run_idx < num_runs; run_idx++)
     {
-        spdlog::trace("Loading RUN {} at LEVEL {} : {} entries (file size ~ {:.3f} MB)",
+        spdlog::trace("Loading RUN {} at LEVEL {} : {} entries (run size ~ {:.3f} MB)",
             run_idx, level, entries_per_run,
             (entries_per_run * this->fluid_opt.entry_size) / static_cast<double>(1 << 20));
 
         status = this->bulk_load_single_run(db, entries_per_run);
-    }
-
-    // Level 1 (IDX = 0) items do not need to be forced down to any level, leave it as is
-    if (level == 1)
-    {
-        //> Wait for any remaning compactions to be placed in before we fill in the final level
-        // while (this->compactions_left_count > 0);
-        return status;
     }
 
     // Force all runs in this level to be mapped to their respective level
@@ -149,9 +141,29 @@ rocksdb::Status FluidLSMBulkLoader::bulk_load_single_level(
         file_names.push_back(file.name);
     }
 
-    // TODO : Want to work on something better to compensate for meta data
-    // We add an extra 5% to size per output file size in order to compensate for meta-data
-    this->rocksdb_compact_opt.output_file_size_limit = 1.05 * entries_per_run * this->fluid_opt.entry_size;
+    if (fluid_opt.file_size_policy_opt == tmpdb::file_size_policy::INCREASING)
+    {
+        // We add an extra 5% to size per output file size in order to compensate for meta-data
+        this->rocksdb_compact_opt.output_file_size_limit = 1.05 * entries_per_run * this->fluid_opt.entry_size;
+        if (level == 1)
+        {
+            // Note for an increasing file size, we do not want to trigger a compaction at level 1
+            return status;
+        }
+    }
+    else if (fluid_opt.file_size_policy_opt == tmpdb::file_size_policy::BUFFER)
+    {
+        if (level == 1)
+        {
+            // Note for an increasing file size, we do not want to trigger a compaction at level 1
+            return status;
+        }
+        this->rocksdb_compact_opt.output_file_size_limit = this->fluid_opt.buffer_size;
+    }
+    else
+    {
+        this->rocksdb_compact_opt.output_file_size_limit = this->fluid_opt.fixed_file_size;
+    }
 
     tmpdb::CompactionTask *task = new tmpdb::CompactionTask(
         db, this, "default", file_names, level_idx, this->rocksdb_compact_opt, 0, true, false);
@@ -203,7 +215,7 @@ void FluidLSMBulkLoader::CompactFiles(void *arg)
     std::unique_ptr<tmpdb::CompactionTask> task(reinterpret_cast<tmpdb::CompactionTask *>(arg));
     assert(task);
     assert(task->db);
-    assert(task->output_level > (int) task->origin_level_id);
+    // assert(task->output_level > (int) task->origin_level_id);
 
     std::vector<std::string> *output_file_names = new std::vector<std::string>();
     rocksdb::Status s = task->db->CompactFiles(

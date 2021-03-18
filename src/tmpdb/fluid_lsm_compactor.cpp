@@ -48,33 +48,61 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
 
     std::vector<std::string> input_file_names;
 
+    size_t level_size = 0;
     for (auto &file : cf_meta.levels[level_idx].files)
     {
         if (file.being_compacted) {continue;}
         input_file_names.push_back(file.name);
+        level_size += file.size;
     }
     live_runs = input_file_names.size();
 
-    bool lower_levels_need_compact = (((int) level_idx < largest_level_idx) && (live_runs > this->fluid_opt.lower_level_run_max));
-    bool last_levels_need_compact = (((int) level_idx == largest_level_idx) && (live_runs > this->fluid_opt.largest_level_run_max));
-
-    if (!lower_levels_need_compact && !last_levels_need_compact)
+    if (fluid_opt.file_size_policy_opt == INCREASING)
     {
-        return nullptr;
-    }
+        bool lower_levels_need_compact = (((int) level_idx < largest_level_idx) && (live_runs > this->fluid_opt.lower_level_run_max));
+        bool last_levels_need_compact = (((int) level_idx == largest_level_idx) && (live_runs > this->fluid_opt.largest_level_run_max));
 
-    size_t level_capacity = (T - 1) * std::pow(T, level_idx + 1) * (this->fluid_opt.buffer_size);
-    if ((int) level_idx == this->largest_occupied_level(db)) //> Last level we restrict number of runs to Z
-    {
-        this->rocksdb_compact_opt.output_file_size_limit = static_cast<uint64_t>(level_capacity) / this->fluid_opt.largest_level_run_max;
+        if (!lower_levels_need_compact && !last_levels_need_compact)
+        {
+            return nullptr;
+        }
     }
     else
     {
-        this->rocksdb_compact_opt.output_file_size_limit = static_cast<uint64_t>(level_capacity) / this->fluid_opt.lower_level_run_max;
+        uint64_t level_capacity = pow(T, level_idx) * (T - 1) * this->fluid_opt.buffer_size;
+        spdlog::info("Level Capacity at level {} : {} MB", level_idx, level_capacity >> 20);
+        bool level_need_compaction = (level_size > (pow(T, level_idx) * (T - 1) * this->fluid_opt.buffer_size));
+        if (!level_need_compaction)
+        {
+            return nullptr;
+        }
     }
 
-    // We give an extra 5% memory per file in order to accomodate meta data
-    this->rocksdb_compact_opt.output_file_size_limit *= 1.05;
+    if (fluid_opt.file_size_policy_opt == INCREASING)
+    {
+
+        size_t level_capacity = (T - 1) * std::pow(T, level_idx + 1) * (this->fluid_opt.buffer_size);
+        if ((int) level_idx == this->largest_occupied_level(db)) //> Last level we restrict number of runs to Z
+        {
+            this->rocksdb_compact_opt.output_file_size_limit = static_cast<uint64_t>(level_capacity) / this->fluid_opt.largest_level_run_max;
+        }
+        else
+        {
+            this->rocksdb_compact_opt.output_file_size_limit = static_cast<uint64_t>(level_capacity) / this->fluid_opt.lower_level_run_max;
+        }
+
+        // We give an extra 5% memory per file in order to accomodate meta data
+        this->rocksdb_compact_opt.output_file_size_limit *= 1.05;
+    }
+    else if (fluid_opt.file_size_policy_opt == BUFFER)
+    {
+        this->rocksdb_compact_opt.output_file_size_limit = rocksdb_opt.write_buffer_size;
+    }
+    else
+    {
+        this->rocksdb_compact_opt.output_file_size_limit = fluid_opt.fixed_file_size;
+    }
+
 
     return new CompactionTask(
         db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, false, false);

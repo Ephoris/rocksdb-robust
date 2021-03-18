@@ -18,7 +18,7 @@ class RocksDBWrapper(object):
         self.B = B  # Buffer size (bytes)
         self.E = E  # Entry size (bytes)
         self.bpe = bpe  # Bits per entry for bloom filter
-        self.L = L  # Number of eLtries
+        self.L = L  # Number of levels
         self.destroy = destroy  # destroy DB is exist in path
         self.log = logging.getLogger('exp_logger')
 

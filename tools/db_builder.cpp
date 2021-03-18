@@ -34,7 +34,9 @@ typedef struct
     int max_rocksdb_levels = 35;
     int parallelism = 1;
 
-    int seed = std::time(nullptr); 
+    int seed = std::time(nullptr);
+    tmpdb::file_size_policy file_size_policy_opt = tmpdb::file_size_policy::INCREASING;
+    uint64_t fixed_file_size = std::numeric_limits<uint64_t>::max();
 
 } environment;
 
@@ -59,17 +61,17 @@ environment parse_args(int argc, char * argv[])
         "build options:" % (
             (value("db_path", env.db_path)) % "path to the db",
             (option("-T", "--size-ratio") & number("ratio", env.T))
-                % ("size ratio, [default: " + to_string(env.T) + "]"),
-            (option("-K", "--lower_level_size_ratio") & number("ratio", env.K))
-                % ("size ratio, [default: " + to_string(env.K) + "]"),
-            (option("-Z", "--largest_level_size_ratio") & number("ratio", env.Z))
-                % ("size ratio, [default: " + to_string(env.Z) + "]"),
+                % ("size ratio, [default: " + fmt::format("{:.0f}", env.T) + "]"),
+            (option("-K", "--lower_level_lim") & number("lim", env.K))
+                % ("lower levels file limit, [default: " + fmt::format("{:.0f}", env.K) + "]"),
+            (option("-Z", "--last_level_lim") & number("lim", env.Z))
+                % ("last level file limit, [default: " + fmt::format("{:.0f}", env.Z) + "]"),
             (option("-B", "--buffer-size") & integer("size", env.B))
                 % ("buffer size (in bytes), [default: " + to_string(env.B) + "]"),
             (option("-E", "--entry-size") & integer("size", env.E))
                 % ("entry size (bytes) [default: " + to_string(env.E) + ", min: 32]"),
             (option("-b", "--bpe") & number("bits", env.bits_per_element))
-                % ("bits per entry per bloom filter across levels [default: " + to_string(env.bits_per_element) + "]"),
+                % ("bits per entry per bloom filter [default: " + fmt::format("{:.1f}", env.bits_per_element) + "]"),
             (option("-d", "--destroy").set(env.destroy_db)) % "destroy the DB if it exists at the path"
         ),
         "db fill options (pick one):" % (
@@ -93,10 +95,27 @@ environment parse_args(int argc, char * argv[])
         )
     );
 
+    auto file_size_policy_opt =
+    (
+        "file size policy (pick one)" % 
+        one_of(
+            (
+                option("--increasing_files").set(env.file_size_policy_opt, tmpdb::file_size_policy::INCREASING)
+                    % "file size will match run size as LSM tree grows (default)",
+                (option("--fixed_files").set(env.file_size_policy_opt, tmpdb::file_size_policy::FIXED)
+                    & opt_integer("size", env.fixed_file_size))
+                    % "fixed file size specified after fixed_files flag [default size MAX uint64]",
+                option("--buffer_files").set(env.file_size_policy_opt, tmpdb::file_size_policy::BUFFER)
+                    % "file size matches the buffer size"
+            )
+        )
+    );
+
     auto cli = (
         general_opt,
-        build_opt, 
-        minor_opt
+        build_opt,
+        minor_opt,
+        file_size_policy_opt
     );
 
     if (!parse(argc, argv, cli))
@@ -138,7 +157,8 @@ void fill_fluid_opt(environment env, tmpdb::FluidOptions &fluid_opt)
         fluid_opt.levels = env.L;
         // TODO: Calculate N based on levels
     }
-    
+    fluid_opt.file_size_policy_opt = env.file_size_policy_opt;
+    fluid_opt.fixed_file_size = env.fixed_file_size;
 }
 
 
@@ -158,7 +178,7 @@ void build_db(environment & env)
     rocksdb_opt.disable_auto_compactions = true;
     rocksdb_opt.write_buffer_size = env.B; 
     rocksdb_opt.num_levels = env.max_rocksdb_levels;
-    // Prevents rocksdb from limiting file size
+   // Prevents rocksdb from limiting file size
     rocksdb_opt.target_file_size_base = UINT64_MAX;
 
     fill_fluid_opt(env, fluid_opt);

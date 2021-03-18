@@ -31,6 +31,8 @@ bool FluidOptions::read_config(std::string config_path)
     this->bulk_load_opt = cfg["bulk_load_opt"];
     this->num_entries = cfg["num_entries"];
     this->levels = cfg["levels"];
+    this->fixed_file_size = cfg["fixed_file_size"];
+    this->file_size_policy_opt = cfg["file_size_policy_opt"];
 
     return true;
 }
@@ -48,6 +50,8 @@ bool FluidOptions::write_config(std::string config_path)
     cfg["bulk_load_opt"] = this->bulk_load_opt;
     cfg["levels"] = this->levels;
     cfg["num_entries"] = this->num_entries;
+    cfg["fixed_file_size"] = this->fixed_file_size;
+    cfg["file_size_policy_opt"] = this->file_size_policy_opt;
 
     std::ofstream out_cfg(config_path);
     if (!out_cfg.is_open())
