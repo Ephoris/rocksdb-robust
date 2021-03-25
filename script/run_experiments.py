@@ -2,21 +2,27 @@
 import logging
 import sys
 
-from experiments.database import RocksDBWrapper
-from experiments.size_ratio_cost import SizeRatioCost
 from experiments.bpe_cost import BPECost
+from experiments.size_ratio_cost import SizeRatioCost
+from experiments.write_exp import WriteCost
 
 config = {
-    "db_path" : "/scratchNVM5/ndhuynh/tmp",
-    "T" : 10,
-    "K" : 9,
-    "Z" : 9,
-    "B" : 1048576 * 8,
-    "E" : 1024,
-    "bpe" : 9.0,
-    "L" : 3,
-    "destroy" : True
+    'db_path' : '/Users/ndhuynh/sandbox/tmp',
+    'T' : 10,
+    'K' : 9,
+    'Z' : 9,
+    'B' : 1048576 * 8,
+    'E' : 1024,
+    'bpe' : 9.0,
+    'L' : 3,
+    'destroy' : True
 }
+
+experiments = [
+    BPECost,
+    SizeRatioCost,
+    WriteCost,
+]
 
 
 def init_logger():
@@ -38,12 +44,7 @@ def main():
     log = init_logger()
     log.info('Welcome to experiment runner')
 
-    # jobs = [SizeRatioCost, BPECost]
-    jobs = [BPECost]
-    for job_obj in jobs:
-        job = job_obj(config)
-        log.info("Running %s", job.name())
-        job.run(tiering)
+
 
     return 0
 

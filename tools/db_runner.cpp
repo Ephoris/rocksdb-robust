@@ -36,6 +36,9 @@ typedef struct
     bool write_out = false;
 
     int verbose = 0;
+
+    bool prime_db = false;
+    size_t prime_reads = 0;
 } environment;
 
 
@@ -62,7 +65,9 @@ environment parse_args(int argc, char * argv[])
         (option("-w", "--writes") & integer("num", env.writes))
             % ("empty queries, [default: " + to_string(env.writes) + "]"),
         (option("-o", "--output").set(env.write_out) & value("file", env.write_out_path))
-            % ("optional write out all recorded times [default: off]")
+            % ("optional write out all recorded times [default: off]"),
+        (option("-p", "--prime").set(env.prime_db) & value("num", env.prime_reads))
+            % ("optional warm up the database with reads [default: off]")
     );
 
     auto minor_opt = "minor options:" % (
@@ -247,6 +252,58 @@ int run_random_empty_reads(environment env)
 }
 
 
+int prime_database(environment env)
+{
+    spdlog::debug("Priming database: {}", env.db_path);
+    rocksdb::Options rocksdb_opt;
+    tmpdb::FluidOptions fluid_opt(env.db_path + "/fluid_config.json");
+
+    rocksdb_opt.create_if_missing = false;
+    rocksdb_opt.error_if_exists = false;
+    rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
+    rocksdb_opt.compression = rocksdb::kNoCompression;
+
+    rocksdb_opt.use_direct_reads = true;
+    rocksdb_opt.num_levels = env.rocksdb_max_levels;
+    rocksdb_opt.IncreaseParallelism(env.parallelism);
+
+    tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
+    rocksdb_opt.listeners.emplace_back(fluid_compactor);
+
+    rocksdb::BlockBasedTableOptions table_options;
+    table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(fluid_opt.bits_per_element, false));
+    rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
+
+    rocksdb::DB *db = nullptr;
+    rocksdb::Status status = rocksdb::DB::OpenForReadOnly(rocksdb_opt, env.db_path, &db);
+    if (!status.ok())
+    {
+        spdlog::error("Problems opening DB");
+        spdlog::error("{}", status.ToString());
+        delete db;
+        exit(EXIT_FAILURE);
+    }
+
+    rocksdb::ReadOptions read_opt;
+
+    std::string value;
+    std::mt19937 engine;
+    std::uniform_int_distribution<int> dist(0, 2 * KEY_DOMAIN);
+
+    spdlog::info("Priming database with {} reads", env.prime_reads);
+    for (size_t read_count = 0; read_count < env.prime_reads; read_count++)
+    {
+        status = db->Get(read_opt, std::to_string(dist(engine)), &value);
+    }
+
+    db->Close();
+    delete db;
+
+    return 0;
+
+}
+
+
 int run_random_inserts(environment env)
 {
     spdlog::debug("Opening DB for writes: {}", env.db_path);
@@ -409,6 +466,11 @@ int main(int argc, char * argv[])
     else
     {
         spdlog::set_level(spdlog::level::info);
+    }
+
+    if (env.prime_db)
+    {
+        prime_database(env);
     }
 
     int write_duration = -1, read_duration = -1, empty_read_duration = -1;

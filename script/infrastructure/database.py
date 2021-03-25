@@ -53,13 +53,14 @@ class RocksDBWrapper(object):
 
         return completed_process
 
-    def run_workload(self, reads, empty_reads, writes):
+    def run_workload(self, reads, empty_reads, writes, prime=1000000):
         cmd = [
             EXECUTE_DB_PATH,
             self.db_path,
             '-e {}'.format(empty_reads),
             '-r {}'.format(reads),
             '-w {}'.format(writes),
+            f'-p {prime}',
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)

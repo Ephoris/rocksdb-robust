@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from experiments.database import RocksDBWrapper
+from infrastructure.database import RocksDBWrapper
 
 EMPTY_READS = 5000000
 VALID_READS = 5000000
