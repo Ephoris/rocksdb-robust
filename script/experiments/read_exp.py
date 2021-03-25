@@ -63,4 +63,4 @@ class ReadCost(object):
             time_results.append(result)
 
         df = pd.DataFrame(time_results)
-        df.to_csv('size_ratio_cost.csv', index=False)
+        df.to_csv('read_cost.csv', index=False)

@@ -5,6 +5,7 @@ import sys
 from experiments.bpe_cost import BPECost
 from experiments.size_ratio_cost import SizeRatioCost
 from experiments.write_exp import WriteCost
+from experiments.read_exp import ReadCost
 
 config = {
     'db_path' : '/Users/ndhuynh/sandbox/tmp',
@@ -19,9 +20,10 @@ config = {
 }
 
 experiments = [
-    BPECost,
-    SizeRatioCost,
-    WriteCost,
+    # BPECost,
+    # SizeRatioCost,
+    # WriteCost,
+    ReadCost,
 ]
 
 
@@ -43,8 +45,10 @@ def main():
 
     log = init_logger()
     log.info('Welcome to experiment runner')
-
-
+    for experiment in experiments:
+        job = experiment(config)
+        log.info(f'Running job {job.name()}')
+        job.run(tiering=tiering)
 
     return 0
 
