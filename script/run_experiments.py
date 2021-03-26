@@ -8,13 +8,13 @@ from experiments.write_exp import WriteCost
 from experiments.read_exp import ReadCost
 
 config = {
-    'db_path' : '/Users/ndhuynh/sandbox/tmp',
+    'db_path' : '/scratch/ndhuynh/db',
     'T' : 10,
     'K' : 9,
     'Z' : 9,
     'B' : 1048576 * 8,
     'E' : 1024,
-    'bpe' : 9.0,
+    'bpe' : 8.0,
     'L' : 3,
     'destroy' : True
 }

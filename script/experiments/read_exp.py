@@ -8,7 +8,8 @@ from infrastructure.database import RocksDBWrapper
 
 READ_NUM = 5000000
 PRIME_READS = 1000000
-RUNS = 5
+RUNS = 2
+N = 20971520 
 
 class ReadCost(object):
 
@@ -25,12 +26,12 @@ class ReadCost(object):
     def run(self, tiering=False):
         local_cfg = copy.deepcopy(self.config)
         size_ratios    = [2,  5, 10, 15, 20]
-        initial_levels = [10, 5, 5,  3, 3]
+        initial_levels = [10, 3, 3,  2, 2]
         params = zip(size_ratios, initial_levels)
 
         time_results = []
         for T, L in params:
-            B = self.calculate_buffer(T, L, local_cfg['N'], local_cfg['E'])
+            B = self.calculate_buffer(T, L, N, local_cfg['E'])
             self.log.info(f'Running Writes with {T=}, {L=}, B={B >> 20} MB')
             local_cfg['T'] = T
             local_cfg['K'] = local_cfg['Z'] = T - 1 if tiering else 1
@@ -46,6 +47,7 @@ class ReadCost(object):
                 'bpe' : local_cfg['bpe'],
                 'num_reads' : READ_NUM
             }
+            self.log.info(f'Total DB Size: {(N * local_cfg["E"]) >> 30} GB')
 
             for run in range(RUNS):
                 db = RocksDBWrapper(**local_cfg)
