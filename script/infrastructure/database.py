@@ -40,8 +40,7 @@ class RocksDBWrapper(object):
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
-        self.log.info("Creating DB...")
-        # self.log.info(cmd)
+        self.log.debug("Creating DB...")
 
         completed_process = subprocess.Popen(
             cmd,
@@ -64,7 +63,7 @@ class RocksDBWrapper(object):
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
-        self.log.info("Running workload...")
+        self.log.debug("Running workload...")
         # self.log.info(cmd)
 
         completed_process = subprocess.Popen(

@@ -22,45 +22,53 @@ class WriteCost(object):
 
         return int(write_num)
 
-    def run(self, tiering=False):
+    def run(self, compaction_policy):
         local_cfg = copy.deepcopy(self.config)
         size_ratios    = [2,  5, 10, 15]
         initial_levels = [11, 4, 3,  2]
-        params = zip(size_ratios, initial_levels)
+
+        if compaction_policy == 'both':
+            compactions = ['tiering', 'leveling']
+        else:
+            compactions = [compaction_policy]
 
         time_results = []
-        for T, L in params:
-            self.log.info(f'Running Writes with {T=}, {L=}')
-            local_cfg['T'] = T
-            local_cfg['K'] = local_cfg['Z'] = T - 1 if tiering else 1
-            local_cfg['L'] = L
-            write_num = self.find_number_writes(L, T, local_cfg['B'], local_cfg['E'])
+        for policy in compactions:
+            self.log.info(f'Compaction policy: {policy}')
+            params = zip(size_ratios, initial_levels)
+            for T, L in params:
+                local_cfg['T'] = T
+                local_cfg['K'] = local_cfg['Z'] = T - 1 if policy == 'tiering' else 1
+                local_cfg['L'] = L
+                write_num = self.find_number_writes(L, T, local_cfg['B'], local_cfg['E'])
 
-            result = {
-                'T' : T,
-                'L' : L,
-                'K' : local_cfg['K'],
-                'Z' : local_cfg['Z'],
-                'B' : local_cfg['B'],
-                'E' : local_cfg['E'],
-                'bpe' : local_cfg['bpe'],
-                'num_writes' : write_num
-            }
-            self.log.info(f'Writing {(write_num * local_cfg["E"]) >> 30} GB')
+                result = {
+                    'T' : T,
+                    'L' : L,
+                    'K' : local_cfg['K'],
+                    'Z' : local_cfg['Z'],
+                    'B' : local_cfg['B'],
+                    'E' : local_cfg['E'],
+                    'bpe' : local_cfg['bpe'],
+                    'num_writes' : write_num
+                }
+                self.log.info(f'DB configured with {T=}, {L=} | DB size {(write_num * local_cfg["E"]) >> 30} GB')
 
-            for run in range(RUNS):
-                db = RocksDBWrapper(**local_cfg)
-                write_time, _, _ = db.run_workload(0, 0, write_num)
-                # write_time = 1
+                for run in range(RUNS):
+                    db = RocksDBWrapper(**local_cfg)
+                    write_time, _, _ = db.run_workload(0, 0, write_num)
+    
+                    result['write_time_' + str(run)] = write_time
 
-                result['write_time_' + str(run)] = write_time
+                    self.log.info('Run %d | Write time: %d ms', run + 1, write_time)
+                    del db
 
-                self.log.info('Run %d : Write Time %d ms', run + 1, write_time)
-                del db
-
-            result['write_time'] = np.average([result['write_time_' + str(run)] for run in range(RUNS)])
-            self.log.info('Average Write Time: %d ms', result['write_time'])
-            time_results.append(result)
+                result['write_time'] = np.average([result['write_time_' + str(run)] for run in range(RUNS)])
+                self.log.info('Average write time: %d ms', result['write_time'])
+                time_results.append(result)
+                # Do a periodic write to save progress
+                df = pd.DataFrame(time_results)
+                df.to_csv('write_cost.csv', index=False)
 
         df = pd.DataFrame(time_results)
-        df.to_csv('size_ratio_cost.csv', index=False)
+        df.to_csv('write_cost.csv', index=False)
