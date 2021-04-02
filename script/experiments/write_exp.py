@@ -6,7 +6,7 @@ import pandas as pd
 
 from infrastructure.database import RocksDBWrapper
 
-RUNS = 5
+RUNS = 3
 
 class WriteCost(object):
 
@@ -24,8 +24,8 @@ class WriteCost(object):
 
     def run(self, compaction_policy):
         local_cfg = copy.deepcopy(self.config)
-        size_ratios    = [2,  5, 10, 15]
-        initial_levels = [11, 4, 3,  2]
+        size_ratios    = [2,  5, 10, 15, 20]
+        initial_levels = [11, 4, 3,  2,  2]
 
         if compaction_policy == 'both':
             compactions = ['tiering', 'leveling']

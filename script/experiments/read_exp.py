@@ -8,8 +8,8 @@ from infrastructure.database import RocksDBWrapper
 
 READ_NUM = 5000000
 PRIME_READS = 1000000
-RUNS = 2
-N = 20971520 
+RUNS = 1
+N = 2 * 20971520 
 
 class ReadCost(object):
 

@@ -40,7 +40,7 @@ class RocksDBWrapper(object):
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
-        self.log.debug("Creating DB...")
+        self.log.debug(f'Creating DB command : {cmd}')
 
         completed_process = subprocess.Popen(
             cmd,
@@ -63,8 +63,7 @@ class RocksDBWrapper(object):
             '--parallelism {}'.format(THREADS),
         ]
         cmd = ' '.join(cmd)
-        self.log.debug("Running workload...")
-        # self.log.info(cmd)
+        self.log.debug(f'Running workload command : {cmd}')
 
         completed_process = subprocess.Popen(
             cmd,
@@ -75,5 +74,8 @@ class RocksDBWrapper(object):
         ).communicate()[0]
 
         time_results = self.time_prog.search(completed_process)
+
+        if time_results is None or time_results.groups() is None:
+            return (-1, -1, -1)
 
         return (int(result) for result in time_results.groups())

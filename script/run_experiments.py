@@ -58,7 +58,7 @@ def config_from_args(args):
 def init_logger():
     logging.basicConfig(
         stream=sys.stdout,
-        level=logging.INFO,
+        level=logging.DEBUG,
         format='[%(levelname)s][%(asctime)s.%(msecs)04d][%(filename)s] : %(message)s',
         datefmt='%H:%M:%S'
     )
@@ -82,7 +82,7 @@ def main():
     # if 'SizeRatioCost' in args.exp:
     #     job = SizeRatioCost(config)
     #     log.info(f'Running job {job.name()}')
-        # job.run(compaction_policy=args.compaction_policy)
+    #     job.run(compaction_policy=args.compaction_policy)
     if 'ReadCost' in args.exp:
         job = ReadCost(config)
         log.info(f'Running job {job.name()}')
