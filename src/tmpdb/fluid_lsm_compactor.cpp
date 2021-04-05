@@ -111,7 +111,6 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
 
 void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPACE::FlushJobInfo &info)
 {
-    spdlog::info("On Flush Completion...");
     int largest_level_idx = this->largest_occupied_level(db);
 
     // We will wait for any remaining compactions to finish before scheduling another to prevent invalid files
@@ -120,17 +119,14 @@ void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPAC
 
     for (int level_idx = largest_level_idx; level_idx > -1; level_idx--)
     {
-        spdlog::info("Picking compaction at level {}", level_idx);
         CompactionTask *task = PickCompaction(db, info.cf_name, level_idx);
 
         if (!task) {continue;}
 
         task->retry_on_fail = info.triggered_writes_slowdown;
-        spdlog::info("Scheduling task at level {}", level_idx);
         ScheduleCompaction(task);
     }
 
-    spdlog::info("Flush complete");
 
     return;
 }
@@ -158,22 +154,24 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         // try to schedule another compaction in case the reason
         // is not an IO error.
 
-        spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
-            task->origin_level_id + 1,
-            task->output_level + 1,
-            task->input_file_names.size(),
-            s.ToString());
-        CompactionTask *new_task = new CompactionTask(
-            task->db,
-            task->compactor,
-            task->column_family_name,
-            task->input_file_names,
-            task->output_level,
-            task->compact_options,
-            task->origin_level_id,
-            task->retry_on_fail,
-            true
-        );
+        // spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
+        //     task->origin_level_id + 1,
+        //     task->output_level + 1,
+        //     task->input_file_names.size(),
+        //     s.ToString());
+        // CompactionTask *new_task = new CompactionTask(
+        //     task->db,
+        //     task->compactor,
+        //     task->column_family_name,
+        //     task->input_file_names,
+        //     task->output_level,
+        //     task->compact_options,
+        //     task->origin_level_id,
+        //     task->retry_on_fail,
+        //     true
+        // );
+        CompactionTask *new_task = task->compactor->PickCompaction(
+            task->db, task->column_family_name, task->origin_level_id);
         task->compactor->ScheduleCompaction(new_task);
 
         return;
