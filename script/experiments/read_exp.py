@@ -8,8 +8,8 @@ from infrastructure.database import RocksDBWrapper
 
 READ_NUM = 5000000
 PRIME_READS = 1000000
-RUNS = 1
-N = 2 * 20971520 
+RUNS = 5
+N = 50 * 1024 * 1024
 
 class ReadCost(object):
 
@@ -26,7 +26,7 @@ class ReadCost(object):
     def run(self, compaction_policy='both'):
         local_cfg = copy.deepcopy(self.config)
         size_ratios    = [2,  5, 10, 15, 20]
-        initial_levels = [10, 3, 3,  2, 2]
+        initial_levels = [8, 5, 4,  4, 3]
 
         if compaction_policy == 'both':
             compactions = ['tiering', 'leveling']
@@ -42,6 +42,7 @@ class ReadCost(object):
                 local_cfg['T'] = T
                 local_cfg['K'] = local_cfg['Z'] = T - 1 if policy == 'tiering' else 1
                 local_cfg['L'] = L
+                local_cfg['B'] = B
 
                 result = {
                     'T' : T,

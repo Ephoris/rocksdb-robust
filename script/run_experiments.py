@@ -35,6 +35,8 @@ def parse_args():
     parser.add_argument('-b', '--bpe', default=8.0, type=float, help='bits per element per bloom filter')
     parser.add_argument('-L', '--levels', default=3, type=int, help='starting number of levels')
 
+    parser.add_argument('-v', '--verbosity', default=0, choices=[0, 1, 2], type=int, help='verbosity level')
+
     args = parser.parse_args()
     return args
 
@@ -55,10 +57,16 @@ def config_from_args(args):
     return config
 
 
-def init_logger():
+def init_logger(args):
+    if args.verbosity == 0:
+        logging_level = logging.INFO
+    elif args.verbosity == 1:
+        logging_level = logging.DEBUG
+
+
     logging.basicConfig(
         stream=sys.stdout,
-        level=logging.DEBUG,
+        level=logging_level,
         format='[%(levelname)s][%(asctime)s.%(msecs)04d][%(filename)s] : %(message)s',
         datefmt='%H:%M:%S'
     )
@@ -72,7 +80,7 @@ def main():
     args = parse_args()
     config = config_from_args(args)
 
-    log = init_logger()
+    log = init_logger(args)
     log.info('Welcome to the experiment runner')
 
     # if 'BPECost' in args.exp:

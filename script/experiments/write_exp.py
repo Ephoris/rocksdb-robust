@@ -52,7 +52,7 @@ class WriteCost(object):
                     'bpe' : local_cfg['bpe'],
                     'num_writes' : write_num
                 }
-                self.log.info(f'DB configured with {T=}, {L=} | DB size {(write_num * local_cfg["E"]) >> 30} GB')
+                self.log.info(f'DB configured with {T=}, {L=} | Writing to DB {(write_num * local_cfg["E"]) >> 30} GB')
 
                 for run in range(RUNS):
                     db = RocksDBWrapper(**local_cfg)
