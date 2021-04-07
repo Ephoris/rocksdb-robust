@@ -252,7 +252,7 @@ void build_db(environment & env)
 
 int main(int argc, char * argv[])
 {
-    spdlog::set_pattern("[%T.%e] %^[%l]%$ %v");
+    spdlog::set_pattern("[%T.%e]%^[%l]%$ %v");
     environment env = parse_args(argc, argv);
 
     spdlog::info("Welcome to db_builder!");

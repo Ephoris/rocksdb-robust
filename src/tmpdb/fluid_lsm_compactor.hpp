@@ -106,6 +106,7 @@ class FluidLSMCompactor : public FluidCompactor
 {
 public:
     std::mutex compactions_left_mutex;
+    std::mutex meta_data_mutex;
     std::atomic<int> compactions_left_count;
 
     /**

@@ -43,6 +43,7 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
     int T = this->fluid_opt.size_ratio;
     int largest_level_idx = this->largest_occupied_level(db);
 
+    this->meta_data_mutex.lock();
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
 
@@ -104,6 +105,7 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
     }
 
 
+    this->meta_data_mutex.unlock();
     return new CompactionTask(
         db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, false, false);
 }
@@ -172,6 +174,7 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         // );
         CompactionTask *new_task = task->compactor->PickCompaction(
             task->db, task->column_family_name, task->origin_level_id);
+        new_task->is_a_retry = true;
         task->compactor->ScheduleCompaction(new_task);
 
         return;
