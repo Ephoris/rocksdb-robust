@@ -65,6 +65,7 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
 
         if (!lower_levels_need_compact && !last_levels_need_compact)
         {
+            this->meta_data_mutex.unlock();
             return nullptr;
         }
     }
@@ -75,6 +76,7 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
         bool level_need_compaction = (level_size > (pow(T, level_idx) * (T - 1) * this->fluid_opt.buffer_size));
         if (!level_need_compaction)
         {
+            this->meta_data_mutex.unlock();
             return nullptr;
         }
     }
