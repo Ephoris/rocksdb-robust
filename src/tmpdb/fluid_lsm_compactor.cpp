@@ -108,6 +108,7 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
 
 
     this->meta_data_mutex.unlock();
+    spdlog::trace("Created CompactionTask L{} -> L{}", level_idx + 1, level_idx + 2);
     return new CompactionTask(
         db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, false, false);
 }
@@ -158,11 +159,11 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         // try to schedule another compaction in case the reason
         // is not an IO error.
 
-        // spdlog::warn("CompactFile {} -> {} with {} files did not finish: {}",
-        //     task->origin_level_id + 1,
-        //     task->output_level + 1,
-        //     task->input_file_names.size(),
-        //     s.ToString());
+        spdlog::warn("CompactFile L{} -> L{} with {} files did not finish: {}",
+            task->origin_level_id + 1,
+            task->output_level + 1,
+            task->input_file_names.size(),
+            s.ToString());
         // CompactionTask *new_task = new CompactionTask(
         //     task->db,
         //     task->compactor,
@@ -175,7 +176,10 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         //     true
         // );
         CompactionTask *new_task = task->compactor->PickCompaction(
-            task->db, task->column_family_name, task->origin_level_id);
+            task->db,
+            task->column_family_name,
+            task->origin_level_id
+        );
         new_task->is_a_retry = true;
         task->compactor->ScheduleCompaction(new_task);
 
@@ -183,7 +187,8 @@ void FluidLSMCompactor::CompactFiles(void *arg)
     }
 
     ((FluidLSMCompactor *) task->compactor)->compactions_left_count--;
-    spdlog::trace("CompactFiles level {} -> {} finished with status : {}", task->origin_level_id + 1, task->output_level + 1, s.ToString());
+    spdlog::trace("CompactFiles L{} -> L{} finished | Status: {}",
+                  task->origin_level_id + 1, task->output_level + 1, s.ToString());
 
     return;
 }

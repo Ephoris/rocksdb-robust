@@ -397,20 +397,20 @@ int run_random_inserts(environment env)
     spdlog::debug("Waiting for all remaining background compactions to finish before after writes");
     while(fluid_compactor->compactions_left_count > 0)
     {
-        spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
-        usleep(1000);
+        // spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
+        // usleep(1000);
     }
 
     spdlog::debug("Checking final state of the tree and if it requires any compactions...");
     while(fluid_compactor->requires_compaction(db))
     {
-        spdlog::debug("Requires compaction");
+        // spdlog::debug("Requires compaction");
         while(fluid_compactor->compactions_left_count > 0)
         {
-            spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
-            usleep(1000);
+            // spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
+            // usleep(1000);
         }
-        usleep(1000);
+        // usleep(1000);
     }
 
 
