@@ -334,8 +334,8 @@ int run_random_inserts(environment env)
 
     // Number of files in level 0 to slow down writes. Since we're prioritizing compactions we will wait for those to
     // finish up first by slowing down the write speed
-    rocksdb_opt.level0_slowdown_writes_trigger = 2 * (fluid_opt.lower_level_run_max + 1);
-    rocksdb_opt.level0_stop_writes_trigger = 3 * (fluid_opt.lower_level_run_max + 1);
+    rocksdb_opt.level0_slowdown_writes_trigger = 4 * (fluid_opt.lower_level_run_max + 1);
+    rocksdb_opt.level0_stop_writes_trigger = 5 * (fluid_opt.lower_level_run_max + 1);
 
     tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
@@ -377,7 +377,7 @@ int run_random_inserts(environment env)
             writes_failed++;
             if (writes_failed > max_writes_failed)
             {
-                spdlog::error("10% of total writes have failed, aborting");
+                spdlog::error("10\% of total writes have failed, aborting");
                 db->Close();
                 delete db;
                 exit(EXIT_FAILURE);
