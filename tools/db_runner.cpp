@@ -334,8 +334,8 @@ int run_random_inserts(environment env)
 
     // Number of files in level 0 to slow down writes. Since we're prioritizing compactions we will wait for those to
     // finish up first by slowing down the write speed
-    rocksdb_opt.level0_slowdown_writes_trigger = 2 * (fluid_opt.lower_level_run_max + 1);
-    rocksdb_opt.level0_stop_writes_trigger = 3 * (fluid_opt.lower_level_run_max + 1);
+    rocksdb_opt.level0_slowdown_writes_trigger = 8 * (fluid_opt.lower_level_run_max + 1);
+    rocksdb_opt.level0_stop_writes_trigger = 10 * (fluid_opt.lower_level_run_max + 1);
 
     tmpdb::FluidLSMCompactor *fluid_compactor = new tmpdb::FluidLSMCompactor(fluid_opt, rocksdb_opt);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
@@ -356,7 +356,7 @@ int run_random_inserts(environment env)
 
     rocksdb::WriteOptions write_opt;
     write_opt.sync = false; //> make every write wait for sync with log (so we see real perf impact of insert)
-    write_opt.low_pri = false; //> every insert is less important than compaction
+    write_opt.low_pri = true; //> every insert is less important than compaction
     write_opt.disableWAL = true; 
     write_opt.no_slowdown = false; //> enabling this will make some insertions fail
 

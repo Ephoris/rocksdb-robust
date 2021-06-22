@@ -6,7 +6,7 @@ import pandas as pd
 
 from infrastructure.database import RocksDBWrapper
 
-RUNS = 3
+RUNS = 5
 
 class WriteCost(object):
 
@@ -25,7 +25,7 @@ class WriteCost(object):
     def run(self, compaction_policy):
         local_cfg = copy.deepcopy(self.config)
         size_ratios    = [2,  5, 10, 15, 20]
-        initial_levels = [11, 4, 3,  2,  2]
+        initial_levels = [11, 5, 3,  3,  3]
 
         if compaction_policy == 'both':
             compactions = ['tiering', 'leveling']
@@ -56,7 +56,7 @@ class WriteCost(object):
 
                 for run in range(RUNS):
                     db = RocksDBWrapper(**local_cfg)
-                    write_time, _, _ = db.run_workload(0, 0, write_num)
+                    write_time, _, _ = db.run_workload(0, 0, write_num, 1000)
     
                     result['write_time_' + str(run)] = write_time
 

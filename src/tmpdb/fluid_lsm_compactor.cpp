@@ -39,11 +39,11 @@ int FluidLSMCompactor::largest_occupied_level(rocksdb::DB *db) const
 
 CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::string &cf_name, const size_t level_idx)
 {
+    this->meta_data_mutex.lock();
     int live_runs;
     int T = this->fluid_opt.size_ratio;
     int largest_level_idx = this->largest_occupied_level(db);
 
-    this->meta_data_mutex.lock();
     rocksdb::ColumnFamilyMetaData cf_meta;
     db->GetColumnFamilyMetaData(&cf_meta);
 
@@ -106,9 +106,8 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
         this->rocksdb_compact_opt.output_file_size_limit = fluid_opt.fixed_file_size;
     }
 
-
-    this->meta_data_mutex.unlock();
     spdlog::trace("Created CompactionTask L{} -> L{}", level_idx + 1, level_idx + 2);
+    this->meta_data_mutex.unlock();
     return new CompactionTask(
         db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, false, false);
 }
@@ -117,10 +116,6 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
 void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPACE::FlushJobInfo &info)
 {
     int largest_level_idx = this->largest_occupied_level(db);
-
-    // We will wait for any remaining compactions to finish before scheduling another to prevent invalid files
-    // spdlog::info("Waiting for remaining compactions...");
-    // while (this->compactions_left_count > 0);
 
     for (int level_idx = largest_level_idx; level_idx > -1; level_idx--)
     {
@@ -186,9 +181,9 @@ void FluidLSMCompactor::CompactFiles(void *arg)
         return;
     }
 
-    ((FluidLSMCompactor *) task->compactor)->compactions_left_count--;
     spdlog::trace("CompactFiles L{} -> L{} finished | Status: {}",
                   task->origin_level_id + 1, task->output_level + 1, s.ToString());
+    ((FluidLSMCompactor *) task->compactor)->compactions_left_count--;
 
     return;
 }
@@ -221,7 +216,9 @@ size_t FluidLSMCompactor::estimate_levels(size_t N, double T, size_t E, size_t B
 
 bool FluidLSMCompactor::requires_compaction(rocksdb::DB *db)
 {
+    this->meta_data_mutex.lock();
     int largest_level_idx = this->largest_occupied_level(db);
+    this->meta_data_mutex.unlock();
     bool task_scheduled = false;
 
     for (int level_idx = largest_level_idx; level_idx > -1; level_idx--)

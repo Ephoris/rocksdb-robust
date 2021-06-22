@@ -6,7 +6,7 @@ import sys
 
 CREATE_DB_PATH = "../build/db_builder"
 EXECUTE_DB_PATH = "../build/db_runner"
-THREADS = 8
+THREADS = 4
 
 class RocksDBWrapper(object):
 
@@ -22,7 +22,7 @@ class RocksDBWrapper(object):
         self.destroy = destroy  # destroy DB is exist in path
         self.log = logging.getLogger('exp_logger')
 
-        self.time_prog = re.compile(r'\[[0-9:.]+\] \[info\] \(w, z1, z0\) : \((-?\d+), (-?\d+), (-?\d+)\)')
+        self.time_prog = re.compile(r'\[[0-9:.]+\]\[info\] \(w, z1, z0\) : \((-?\d+), (-?\d+), (-?\d+)\)')
         self._create_db()
 
     def _create_db(self):
