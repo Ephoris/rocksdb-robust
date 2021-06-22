@@ -256,7 +256,6 @@ int run_range_reads(environment env, tmpdb::FluidOptions * fluid_opt, rocksdb::D
     {
         lower_key = dist(engine);
         upper_key = lower_key + key_hop;
-        spdlog::trace("Lower : Upper : ({}, {})", lower_key, upper_key);
         read_opt.iterate_lower_bound = new rocksdb::Slice(std::to_string(lower_key));
         read_opt.iterate_upper_bound = new rocksdb::Slice(std::to_string(upper_key));
         auto it = db->NewIterator(read_opt);
