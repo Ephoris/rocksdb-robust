@@ -10,7 +10,7 @@
 
 #include "spdlog/spdlog.h"
 
-#define KEY_DOMAIN 1000000000
+#define KEY_DOMAIN 100000000
 
 class DataGenerator
 {
