@@ -377,7 +377,7 @@ int run_random_inserts(environment env)
             writes_failed++;
             if (writes_failed > max_writes_failed)
             {
-                spdlog::error("10% of total writes have failed, aborting");
+                spdlog::error("10\% of total writes have failed, aborting");
                 db->Close();
                 delete db;
                 exit(EXIT_FAILURE);

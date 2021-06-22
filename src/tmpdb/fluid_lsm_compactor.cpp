@@ -106,8 +106,8 @@ CompactionTask *FluidLSMCompactor::PickCompaction(rocksdb::DB *db, const std::st
         this->rocksdb_compact_opt.output_file_size_limit = fluid_opt.fixed_file_size;
     }
 
-    spdlog::trace("Created CompactionTask L{} -> L{}", level_idx + 1, level_idx + 2);
     this->meta_data_mutex.unlock();
+    spdlog::trace("Created CompactionTask L{} -> L{}", level_idx + 1, level_idx + 2);
     return new CompactionTask(
         db, this, cf_name, input_file_names, level_idx + 1, this->rocksdb_compact_opt, level_idx, false, false);
 }
@@ -213,6 +213,7 @@ size_t FluidLSMCompactor::estimate_levels(size_t N, double T, size_t E, size_t B
 
     return estimated_levels;
 }
+
 
 bool FluidLSMCompactor::requires_compaction(rocksdb::DB *db)
 {
