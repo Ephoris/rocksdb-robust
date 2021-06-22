@@ -227,74 +227,49 @@ int run_random_empty_reads(environment env, rocksdb::DB * db)
 }
 
 
-int run_range_reads(environment env, tmpdb::FluidOptions * fluid_opt, rocksdb::DB * db)
+int run_range_reads(environment env,
+                    std::vector<std::string> existing_keys,
+                    tmpdb::FluidOptions * fluid_opt,
+                    rocksdb::DB * db)
 {
     spdlog::info("{} Range Queries", env.range_reads);
     rocksdb::ReadOptions read_opt;
     rocksdb::Status status;
-    size_t entries_in_tree;
-    int lower_key, upper_key;
+    std::string lower_key, upper_key;
     int valid_keys = 0;
+
+    // We use existing keys to 100% enforce all range queries to be short range queries
+    int key_hop = ((PAGESIZE << 10) / fluid_opt->entry_size);
+    int key_idx;
 
     std::string value;
     std::mt19937 engine;
-    std::uniform_int_distribution<int> dist(0, KEY_DOMAIN);
-    if(fluid_opt->num_entries == 0)
-    {
-        entries_in_tree = tmpdb::FluidLSMCompactor::calculate_full_tree(fluid_opt->size_ratio, fluid_opt->entry_size,
-                                                                        fluid_opt->buffer_size, fluid_opt->levels);
-    }
-    else
-    {
-        entries_in_tree = fluid_opt->num_entries;
-    }
-    // 1 page of keys ~ (Avg_Key_Gap) * (Keys_Per_Page)
-    // Adding in percentage to try to bring down the average pages read per short range query down to ~1
-    int key_hop = (KEY_DOMAIN / entries_in_tree) * 0.1 * ((PAGESIZE << 10) / fluid_opt->entry_size);
+    std::uniform_int_distribution<int> dist(0, existing_keys.size() - 1 - key_hop);
 
     auto range_read_start = std::chrono::high_resolution_clock::now();
     for (size_t range_count = 0; range_count < env.range_reads; range_count++)
     {
-        lower_key = dist(engine);
-        upper_key = lower_key + key_hop;
-        read_opt.iterate_lower_bound = new rocksdb::Slice(std::to_string(lower_key));
-        read_opt.iterate_upper_bound = new rocksdb::Slice(std::to_string(upper_key));
-        auto it = db->NewIterator(read_opt);
-        // it->SeekToFirst();
-        for (it->SeekToFirst(); it->Valid(); it->Next())
+        key_idx = dist(engine);
+        lower_key = existing_keys[key_idx];
+        upper_key = existing_keys[key_idx + key_hop];
+        spdlog::trace("Bounds ({}, {})", lower_key, upper_key);
+        read_opt.iterate_upper_bound = new rocksdb::Slice(upper_key);
+        rocksdb::Iterator * it = db->NewIterator(read_opt);
+        for (it->Seek(rocksdb::Slice(lower_key)); it->Valid(); it->Next())
         {
-            spdlog::trace("Iterator key {}", it->key().data());
-            // assert(std::stoi(it->key().data()) >= lower_key);
             valid_keys++;
         }
     }
     auto range_read_end = std::chrono::high_resolution_clock::now();
     auto range_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(range_read_end - range_read_start);
     spdlog::info("Range reads time elapsed : {} ms", range_read_duration.count());
+    spdlog::trace("Valid Keys {}", valid_keys);
     spdlog::trace("Average Pages Read {}", valid_keys / ((PAGESIZE << 10) / fluid_opt->entry_size));
     spdlog::trace("Average Pages per Range Query {}", (valid_keys / ((PAGESIZE << 10) / fluid_opt->entry_size)) / env.range_reads);
 
     return range_read_duration.count();
 }
 
-
-int prime_database(environment env, rocksdb::DB * db)
-{
-    rocksdb::ReadOptions read_opt;
-    rocksdb::Status status;
-
-    std::string value;
-    std::mt19937 engine;
-    std::uniform_int_distribution<int> dist(0, 2 * KEY_DOMAIN);
-
-    spdlog::info("Priming database with {} reads", env.prime_reads);
-    for (size_t read_count = 0; read_count < env.prime_reads; read_count++)
-    {
-        status = db->Get(read_opt, std::to_string(dist(engine)), &value);
-    }
-
-    return 0;
-}
 
 
 int run_random_inserts(environment env,
@@ -393,6 +368,25 @@ void print_db_status(rocksdb::DB * db)
 }
 
 
+int prime_database(environment env, rocksdb::DB * db)
+{
+    rocksdb::ReadOptions read_opt;
+    rocksdb::Status status;
+
+    std::string value;
+    std::mt19937 engine;
+    std::uniform_int_distribution<int> dist(0, 2 * KEY_DOMAIN);
+
+    spdlog::info("Priming database with {} reads", env.prime_reads);
+    for (size_t read_count = 0; read_count < env.prime_reads; read_count++)
+    {
+        status = db->Get(read_opt, std::to_string(dist(engine)), &value);
+    }
+
+    return 0;
+}
+
+
 int main(int argc, char * argv[])
 {
     spdlog::set_pattern("[%T.%e]%^[%l]%$ %v");
@@ -425,6 +419,12 @@ int main(int argc, char * argv[])
     }
 
     int empty_read_duration = 0, read_duration = 0, range_duration = 0, write_duration = 0;
+    std::vector<std::string> existing_keys;
+    
+    if ((env.non_empty_reads > 0) || (env.range_reads > 0))
+    {
+        existing_keys = get_all_valid_keys(env, db);
+    }
 
     if (env.empty_reads > 0)
     {
@@ -433,13 +433,12 @@ int main(int argc, char * argv[])
 
     if (env.non_empty_reads > 0)
     {
-        std::vector<std::string> existing_keys = get_all_valid_keys(env, db);
         read_duration = run_random_non_empty_reads(env, existing_keys, db);
     }
 
     if (env.range_reads > 0)
     {
-        range_duration = run_range_reads(env, fluid_opt, db);
+        range_duration = run_range_reads(env, existing_keys, fluid_opt, db);
     }
 
     if (env.writes > 0)
