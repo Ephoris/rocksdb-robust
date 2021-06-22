@@ -171,6 +171,8 @@ public:
      * @return size_t Number of levels
      */
     static size_t estimate_levels(size_t N, double T, size_t E, size_t B);
+
+    static size_t calculate_full_tree(double T, size_t E, size_t B, size_t L);
 };
 
 

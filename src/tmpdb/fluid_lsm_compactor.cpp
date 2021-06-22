@@ -234,3 +234,17 @@ bool FluidLSMCompactor::requires_compaction(rocksdb::DB *db)
 
     return task_scheduled;
 }
+
+
+size_t FluidLSMCompactor::calculate_full_tree(double T, size_t E, size_t B, size_t L)
+{
+    int full_tree_size = 0;
+    size_t entries_in_buffer = B / E;
+
+    for(int level = 1; level < L + 1; level++)
+    {
+        full_tree_size += entries_in_buffer * (T - 1) * (std::pow(T, level - 1));
+    }
+
+    return full_tree_size;
+}

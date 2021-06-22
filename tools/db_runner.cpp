@@ -16,8 +16,9 @@
 #include "tmpdb/fluid_lsm_compactor.hpp"
 #include "infrastructure/data_generator.hpp"
 
+#define PAGESIZE 4096
 
-typedef struct
+typedef struct environment
 {
     std::string db_path;
 
@@ -156,7 +157,7 @@ rocksdb::Status open_db(environment env,
 }
 
 
-std::vector<std::string> get_all_valid_keys(environment env, rocksdb::DB * db)
+std::vector<std::string> get_all_valid_keys(environment, rocksdb::DB * db)
 {
     // TODO: In reality we should be saving the list of all keys while building the DB to speed up testing. No need to
     // go through and retrieve all keys manually
@@ -185,9 +186,7 @@ std::vector<std::string> get_all_valid_keys(environment env, rocksdb::DB * db)
 int run_random_non_empty_reads(environment env, std::vector<std::string> existing_keys, rocksdb::DB * db)
 {
     spdlog::debug("Running non-empty reads");
-
     rocksdb::Status status;
-    rocksdb::ReadOptions read_opt;
 
     std::string value;
     std::mt19937 engine;
@@ -196,7 +195,7 @@ int run_random_non_empty_reads(environment env, std::vector<std::string> existin
     auto non_empty_read_start = std::chrono::high_resolution_clock::now();
     for (size_t read_count = 0; read_count < env.non_empty_reads; read_count++)
     {
-        status = db->Get(read_opt, existing_keys[dist(engine)], &value);
+        status = db->Get(rocksdb::ReadOptions(), existing_keys[dist(engine)], &value);
     }
     auto non_empty_read_end = std::chrono::high_resolution_clock::now();
     auto non_empty_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(non_empty_read_end - non_empty_read_start);
@@ -209,7 +208,6 @@ int run_random_non_empty_reads(environment env, std::vector<std::string> existin
 int run_random_empty_reads(environment env, rocksdb::DB * db)
 {
     spdlog::debug("Random empty reads");
-    rocksdb::ReadOptions read_opt;
     rocksdb::Status status;
 
     std::string value;
@@ -219,7 +217,7 @@ int run_random_empty_reads(environment env, rocksdb::DB * db)
     auto empty_read_start = std::chrono::high_resolution_clock::now();
     for (size_t read_count = 0; read_count < env.non_empty_reads; read_count++)
     {
-        status = db->Get(read_opt, std::to_string(dist(engine)), &value);
+        status = db->Get(rocksdb::ReadOptions(), std::to_string(dist(engine)), &value);
     }
     auto empty_read_end = std::chrono::high_resolution_clock::now();
     auto empty_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(empty_read_end - empty_read_start);
@@ -229,27 +227,50 @@ int run_random_empty_reads(environment env, rocksdb::DB * db)
 }
 
 
-int run_range_reads(environment env, rocksdb::DB * db)
+int run_range_reads(environment env, tmpdb::FluidOptions * fluid_opt, rocksdb::DB * db)
 {
     spdlog::debug("Running range reads");
-    rocksdb::Status status;
     rocksdb::ReadOptions read_opt;
+    rocksdb::Status status;
+    size_t entries_in_tree;
+    int lower_key, upper_key;
+    int valid_keys = 0;
 
     std::string value;
     std::mt19937 engine;
     std::uniform_int_distribution<int> dist(0, KEY_DOMAIN);
-    double average_gap = KEY_DOMAIN;
-
-    auto empty_read_start = std::chrono::high_resolution_clock::now();
-    for (size_t read_count = 0; read_count < env.non_empty_reads; read_count++)
+    if(fluid_opt->num_entries == 0)
     {
-        status = db->Get(read_opt, std::to_string(dist(engine)), &value);
+        entries_in_tree = tmpdb::FluidLSMCompactor::calculate_full_tree(fluid_opt->size_ratio, fluid_opt->entry_size,
+                                                                        fluid_opt->buffer_size, fluid_opt->levels);
     }
-    auto empty_read_end = std::chrono::high_resolution_clock::now();
-    auto empty_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(empty_read_end - empty_read_start);
-    spdlog::info("Empty read time elapsed : {} ms", empty_read_duration.count());
+    else
+    {
+        entries_in_tree = fluid_opt->num_entries;
+    }
+    // 1 page of keys ~ (Avg_Key_Gap) * (Keys_Per_Page)
+    int key_hop = (KEY_DOMAIN / entries_in_tree) * ((PAGESIZE << 10) / fluid_opt->entry_size);
 
-    return empty_read_duration.count();
+    auto range_read_start = std::chrono::high_resolution_clock::now();
+    for (size_t range_count = 0; range_count < env.range_reads; range_count++)
+    {
+        lower_key = dist(engine);
+        upper_key = lower_key + key_hop;
+        spdlog::trace("Lower : Upper : ({}, {})", lower_key, upper_key);
+        read_opt.iterate_lower_bound = new rocksdb::Slice(std::to_string(lower_key));
+        read_opt.iterate_upper_bound = new rocksdb::Slice(std::to_string(upper_key));
+        auto it = db->NewIterator(read_opt);
+        for (it->SeekToFirst(); it->Valid(); it->Next())
+        {
+            valid_keys++;
+        }
+    }
+    auto range_read_end = std::chrono::high_resolution_clock::now();
+    auto range_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(range_read_end - range_read_start);
+    spdlog::info("Range reads time elapsed : {} ms", range_read_duration.count());
+    spdlog::trace("Range read count {}:", valid_keys);
+
+    return range_read_duration.count();
 }
 
 
@@ -271,7 +292,6 @@ int prime_database(environment env, rocksdb::DB * db)
     }
 
     return 0;
-
 }
 
 
@@ -402,7 +422,7 @@ int main(int argc, char * argv[])
         prime_database(env, db);
     }
 
-    int write_duration = -1, read_duration = -1, empty_read_duration = -1;
+    int empty_read_duration = 0, read_duration = 0, range_duration = 0, write_duration = 0;
 
     if (env.empty_reads > 0)
     {
@@ -413,6 +433,11 @@ int main(int argc, char * argv[])
     {
         std::vector<std::string> existing_keys = get_all_valid_keys(env, db);
         read_duration = run_random_non_empty_reads(env, existing_keys, db);
+    }
+
+    if (env.range_reads > 0)
+    {
+        range_duration = run_range_reads(env, fluid_opt, db);
     }
 
     if (env.writes > 0)
@@ -428,7 +453,7 @@ int main(int argc, char * argv[])
     db->Close();
     delete db;
 
-    spdlog::info("(z0, z1, q, w) : ({}, {}, {})", empty_read_duration, read_duration, write_duration);
+    spdlog::info("(z0, z1, q, w) : ({}, {}, {}, {})", empty_read_duration, read_duration, range_duration, write_duration);
 
     return 0;
 }

@@ -13,7 +13,7 @@
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
 
-typedef struct
+typedef struct environment
 {
     std::string db_path;
     tmpdb::bulk_load_type bulk_load_mode;
@@ -172,7 +172,7 @@ void build_db(environment & env)
     rocksdb_opt.error_if_exists = true;
     rocksdb_opt.compaction_style = rocksdb::kCompactionStyleNone;
     rocksdb_opt.compression = rocksdb::kNoCompression;
-    rocksdb_opt.level0_file_num_compaction_trigger = -1;
+    rocksdb_opt.level0_file_num_compaction_trigger = -1; // Bulk loading so we manually trigger compactions when need be
     rocksdb_opt.IncreaseParallelism(env.parallelism);
 
     rocksdb_opt.disable_auto_compactions = true;
