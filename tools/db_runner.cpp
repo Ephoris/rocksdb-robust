@@ -2,6 +2,7 @@
 #include <ctime>
 #include <iostream>
 #include <random>
+#include <regex>
 #include <unistd.h>
 
 #include "clipp.h"
@@ -12,6 +13,8 @@
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/env.h"
+#include "rocksdb/iostats_context.h"
+#include "rocksdb/perf_context.h"
 
 #include "tmpdb/fluid_lsm_compactor.hpp"
 #include "infrastructure/data_generator.hpp"
@@ -27,7 +30,7 @@ typedef struct environment
     size_t range_reads = 0;
     size_t writes = 0;
 
-    int rocksdb_max_levels = 35;
+    int rocksdb_max_levels = 16;
     int parallelism = 1;
 
     int compaction_readahead_size = 64;
@@ -101,11 +104,13 @@ environment parse_args(int argc, char * argv[])
 rocksdb::Status open_db(environment env,
     tmpdb::FluidOptions *& fluid_opt,
     tmpdb::FluidLSMCompactor *& fluid_compactor,
+    rocksdb::Options & rocksdb_opt,
     rocksdb::DB *& db)
 {
     // rocksdb::DB * tmpdb = *db;
     spdlog::debug("Opening database");
-    rocksdb::Options rocksdb_opt;
+    // rocksdb::Options rocksdb_opt;
+    // rocksdb_opt.statistics = rocksdb::CreateDBStatistics();
     fluid_opt = new tmpdb::FluidOptions(env.db_path + "/fluid_config.json");
 
     rocksdb_opt.create_if_missing = false;
@@ -417,7 +422,11 @@ int main(int argc, char * argv[])
     rocksdb::DB * db = nullptr;
     tmpdb::FluidOptions * fluid_opt = nullptr;
     tmpdb::FluidLSMCompactor * fluid_compactor = nullptr;
-    rocksdb::Status status = open_db(env, fluid_opt, fluid_compactor, db);
+
+    rocksdb::Options rocksdb_opt;
+    rocksdb_opt.statistics = rocksdb::CreateDBStatistics();
+    rocksdb::Status status = open_db(env, fluid_opt, fluid_compactor, rocksdb_opt, db);
+    rocksdb::SetPerfLevel(rocksdb::PerfLevel::kEnableTimeExceptForMutex);
 
     if (env.prime_db)
     {
@@ -426,6 +435,9 @@ int main(int argc, char * argv[])
 
     int empty_read_duration = 0, read_duration = 0, range_duration = 0, write_duration = 0;
 
+    // rocksdb::get_iostats_context()->Reset();
+    // rocksdb::get_perf_context()->Reset();
+    rocksdb_opt.statistics->Reset();
     if (env.empty_reads > 0)
     {
         empty_read_duration = run_random_empty_reads(env, db); 
@@ -452,10 +464,17 @@ int main(int argc, char * argv[])
         print_db_status(db);
     }
 
+    std::map<std::string, uint64_t> stats;
+    rocksdb_opt.statistics->getTickerMap(&stats);
+
+    spdlog::info("compaction bytes written : {}", stats["rocksdb.compact.write.bytes"]);
+    spdlog::info("compaction bytes read : {}", stats["rocksdb.compact.read.bytes"]);
+    spdlog::info("bytes written : {}", stats["rocksdb.bytes.written"]);
+    spdlog::info("bytes read : {}", stats["rocksdb.bytes.read"]);
+    spdlog::info("(z0, z1, q, w) : ({}, {}, {}, {})", empty_read_duration, read_duration, range_duration, write_duration);
+
     db->Close();
     delete db;
-
-    spdlog::info("(z0, z1, q, w) : ({}, {}, {}, {})", empty_read_duration, read_duration, range_duration, write_duration);
 
     return 0;
 }
