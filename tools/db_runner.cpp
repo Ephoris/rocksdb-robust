@@ -452,10 +452,12 @@ int main(int argc, char * argv[])
     std::map<std::string, uint64_t> stats;
     rocksdb_opt.statistics->getTickerMap(&stats);
 
-    spdlog::info("compaction bytes written : {}", stats["rocksdb.compact.write.bytes"]);
-    spdlog::info("compaction bytes read : {}", stats["rocksdb.compact.read.bytes"]);
-    spdlog::info("bytes written : {}", stats["rocksdb.bytes.written"]);
-    spdlog::info("bytes read : {}", stats["rocksdb.bytes.read"]);
+    spdlog::info("(read, write, compact_read, compact_write) : ({}, {}, {}, {})",
+        stats["rocksdb.bytes.read"],
+        stats["rocksdb.bytes.written"],
+        stats["rocksdb.compact.read.bytes"],
+        stats["rocksdb.compact.write.bytes"]
+    );
     spdlog::info("(z0, z1, q, w) : ({}, {}, {}, {})", empty_read_duration, read_duration, range_duration, write_duration);
 
     db->Close();
