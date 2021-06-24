@@ -99,11 +99,10 @@ environment parse_args(int argc, char * argv[])
 
 
 rocksdb::Status open_db(environment env,
-    tmpdb::FluidOptions *& fluid_opt,
-    tmpdb::FluidLSMCompactor *& fluid_compactor,
-    rocksdb::DB *& db)
+                        tmpdb::FluidOptions *& fluid_opt,
+                        tmpdb::FluidLSMCompactor *& fluid_compactor,
+                        rocksdb::DB *& db)
 {
-    // rocksdb::DB * tmpdb = *db;
     spdlog::debug("Opening database");
     rocksdb::Options rocksdb_opt;
     fluid_opt = new tmpdb::FluidOptions(env.db_path + "/fluid_config.json");
@@ -165,8 +164,7 @@ std::vector<std::string> get_all_valid_keys(environment, rocksdb::DB * db)
     std::vector<std::string> existing_keys;
 
     rocksdb::Iterator *rocksdb_it = db->NewIterator(rocksdb::ReadOptions());
-    // rocksdb_it->SeekToFirst();
-    for (rocksdb_it->SeekToFirst(); rocksdb_it->Valid(); rocksdb_it->Next())
+     for (rocksdb_it->SeekToFirst(); rocksdb_it->Valid(); rocksdb_it->Next())
     {
         existing_keys.push_back(rocksdb_it->key().ToString());
     }
@@ -236,11 +234,10 @@ int run_range_reads(environment env,
     rocksdb::ReadOptions read_opt;
     rocksdb::Status status;
     std::string lower_key, upper_key;
-    int valid_keys = 0;
+    int key_idx, valid_keys = 0;
 
     // We use existing keys to 100% enforce all range queries to be short range queries
     int key_hop = ((PAGESIZE << 10) / fluid_opt->entry_size);
-    int key_idx;
 
     std::string value;
     std::mt19937 engine;
@@ -252,7 +249,6 @@ int run_range_reads(environment env,
         key_idx = dist(engine);
         lower_key = existing_keys[key_idx];
         upper_key = existing_keys[key_idx + key_hop];
-        spdlog::trace("Bounds ({}, {})", lower_key, upper_key);
         read_opt.iterate_upper_bound = new rocksdb::Slice(upper_key);
         rocksdb::Iterator * it = db->NewIterator(read_opt);
         for (it->Seek(rocksdb::Slice(lower_key)); it->Valid(); it->Next())
@@ -273,9 +269,9 @@ int run_range_reads(environment env,
 
 
 int run_random_inserts(environment env,
-    tmpdb::FluidOptions * fluid_opt,
-    tmpdb::FluidLSMCompactor * fluid_compactor,
-    rocksdb::DB * db)
+                       tmpdb::FluidOptions * fluid_opt,
+                       tmpdb::FluidLSMCompactor * fluid_compactor,
+                       rocksdb::DB * db)
 {
     spdlog::info("{} Write Queries", env.writes);
     rocksdb::WriteOptions write_opt;
@@ -320,22 +316,12 @@ int run_random_inserts(environment env,
     db->Flush(flush_opt);
 
     spdlog::debug("Waiting for all remaining background compactions to finish before after writes");
-    while(fluid_compactor->compactions_left_count > 0)
-    {
-        // spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
-        // usleep(1000);
-    }
+    while(fluid_compactor->compactions_left_count > 0);
 
     spdlog::debug("Checking final state of the tree and if it requires any compactions...");
     while(fluid_compactor->requires_compaction(db))
     {
-        // spdlog::debug("Requires compaction");
-        while(fluid_compactor->compactions_left_count > 0)
-        {
-            // spdlog::debug("{} compactions left...", fluid_compactor->compactions_left_count.load());
-            // usleep(1000);
-        }
-        // usleep(1000);
+        while(fluid_compactor->compactions_left_count > 0);
     }
 
     auto end_write_time = std::chrono::high_resolution_clock::now();
@@ -343,6 +329,25 @@ int run_random_inserts(environment env,
     spdlog::info("Write time elapsed : {} ms", write_duration.count());
 
     return write_duration.count();
+}
+
+
+int prime_database(environment env, rocksdb::DB * db)
+{
+    rocksdb::ReadOptions read_opt;
+    rocksdb::Status status;
+
+    std::string value;
+    std::mt19937 engine;
+    std::uniform_int_distribution<int> dist(0, 2 * KEY_DOMAIN);
+
+    spdlog::info("Priming database with {} reads", env.prime_reads);
+    for (size_t read_count = 0; read_count < env.prime_reads; read_count++)
+    {
+        status = db->Get(read_opt, std::to_string(dist(engine)), &value);
+    }
+
+    return 0;
 }
 
 
@@ -365,25 +370,6 @@ void print_db_status(rocksdb::DB * db)
         spdlog::debug("Level {} : {}", level_idx, level_str);
         level_idx++;
     }
-}
-
-
-int prime_database(environment env, rocksdb::DB * db)
-{
-    rocksdb::ReadOptions read_opt;
-    rocksdb::Status status;
-
-    std::string value;
-    std::mt19937 engine;
-    std::uniform_int_distribution<int> dist(0, 2 * KEY_DOMAIN);
-
-    spdlog::info("Priming database with {} reads", env.prime_reads);
-    for (size_t read_count = 0; read_count < env.prime_reads; read_count++)
-    {
-        status = db->Get(read_opt, std::to_string(dist(engine)), &value);
-    }
-
-    return 0;
 }
 
 
