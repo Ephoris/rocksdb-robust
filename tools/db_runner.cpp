@@ -242,7 +242,7 @@ int run_range_reads(environment env,
     int key_idx, valid_keys = 0;
 
     // We use existing keys to 100% enforce all range queries to be short range queries
-    int key_hop = ((PAGESIZE << 10) / fluid_opt->entry_size);
+    int key_hop = (PAGESIZE / fluid_opt->entry_size);
 
     std::string value;
     std::mt19937 engine;
@@ -258,6 +258,7 @@ int run_range_reads(environment env,
         rocksdb::Iterator * it = db->NewIterator(read_opt);
         for (it->Seek(rocksdb::Slice(lower_key)); it->Valid(); it->Next())
         {
+            status = db->Get(rocksdb::ReadOptions(), it->key().ToString(), &value);
             valid_keys++;
         }
     }
@@ -265,8 +266,8 @@ int run_range_reads(environment env,
     auto range_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(range_read_end - range_read_start);
     spdlog::info("Range reads time elapsed : {} ms", range_read_duration.count());
     spdlog::trace("Valid Keys {}", valid_keys);
-    spdlog::trace("Average Pages Read {}", valid_keys / ((PAGESIZE << 10) / fluid_opt->entry_size));
-    spdlog::trace("Average Pages per Range Query {}", (valid_keys / ((PAGESIZE << 10) / fluid_opt->entry_size)) / env.range_reads);
+    spdlog::trace("Average Pages Read {}", valid_keys / (PAGESIZE / fluid_opt->entry_size));
+    spdlog::trace("Average Pages per Range Query {}", (valid_keys / (PAGESIZE / fluid_opt->entry_size)) / env.range_reads);
 
     return range_read_duration.count();
 }
@@ -448,6 +449,8 @@ int main(int argc, char * argv[])
     {
         print_db_status(db);
     }
+
+    std::cout << rocksdb_opt.statistics->ToString() << std::endl;
 
     std::map<std::string, uint64_t> stats;
     rocksdb_opt.statistics->getTickerMap(&stats);
