@@ -145,6 +145,7 @@ rocksdb::Status open_db(environment env,
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
     rocksdb::BlockBasedTableOptions table_options;
+    table_options.no_block_cache = true;
     table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(fluid_opt->bits_per_element, false));
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
