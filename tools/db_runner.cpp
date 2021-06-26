@@ -170,7 +170,7 @@ std::vector<std::string> get_all_valid_keys(environment, rocksdb::DB * db)
     std::vector<std::string> existing_keys;
 
     rocksdb::Iterator *rocksdb_it = db->NewIterator(rocksdb::ReadOptions());
-     for (rocksdb_it->SeekToFirst(); rocksdb_it->Valid(); rocksdb_it->Next())
+    for (rocksdb_it->SeekToFirst(); rocksdb_it->Valid(); rocksdb_it->Next())
     {
         existing_keys.push_back(rocksdb_it->key().ToString());
     }
@@ -182,6 +182,8 @@ std::vector<std::string> get_all_valid_keys(environment, rocksdb::DB * db)
         delete db;
         exit(EXIT_FAILURE);
     }
+
+    std::sort(existing_keys.begin(), existing_keys.end());
 
     return existing_keys;
 }
@@ -214,12 +216,12 @@ int run_random_empty_reads(environment env, rocksdb::DB * db)
     spdlog::info("{} Empty Reads", env.empty_reads);
     rocksdb::Status status;
 
-    std::string value;
+    std::string value, key;
     std::mt19937 engine;
-    std::uniform_int_distribution<int> dist(KEY_DOMAIN + 1, 2 * KEY_DOMAIN);
+    std::uniform_int_distribution<int> dist(KEY_MIDDLE_LEFT + 1, KEY_MIDDLE_RIGHT - 1);
 
     auto empty_read_start = std::chrono::high_resolution_clock::now();
-    for (size_t read_count = 0; read_count < env.non_empty_reads; read_count++)
+    for (size_t read_count = 0; read_count < env.empty_reads; read_count++)
     {
         status = db->Get(rocksdb::ReadOptions(), std::to_string(dist(engine)), &value);
     }
@@ -262,13 +264,12 @@ int run_range_reads(environment env,
             status = db->Get(rocksdb::ReadOptions(), it->key().ToString(), &value);
             valid_keys++;
         }
+        delete it;
     }
     auto range_read_end = std::chrono::high_resolution_clock::now();
     auto range_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>(range_read_end - range_read_start);
     spdlog::info("Range reads time elapsed : {} ms", range_read_duration.count());
     spdlog::trace("Valid Keys {}", valid_keys);
-    spdlog::trace("Average Pages Read {}", valid_keys / (PAGESIZE / fluid_opt->entry_size));
-    spdlog::trace("Average Pages per Range Query {}", (valid_keys / (PAGESIZE / fluid_opt->entry_size)) / env.range_reads);
 
     return range_read_duration.count();
 }
@@ -423,8 +424,6 @@ int main(int argc, char * argv[])
         existing_keys = get_all_valid_keys(env, db);
     }
 
-    // rocksdb::get_iostats_context()->Reset();
-    // rocksdb::get_perf_context()->Reset();
     rocksdb_opt.statistics->Reset();
     if (env.empty_reads > 0)
     {
@@ -456,8 +455,26 @@ int main(int argc, char * argv[])
     std::map<std::string, uint64_t> stats;
     rocksdb_opt.statistics->getTickerMap(&stats);
 
+
+    spdlog::info("(read_io, write_io) : ({}, {})",
+        stats["rocksdb.l0.hit"] + stats["rocksdb.l1.hit"] + stats["rocksdb.l2andup.hit"] +
+        stats["rocksdb.bloom.filter.full.positive"] - stats["rocksdb.bloom.filter.full.true.positive"],
+        (stats["rocksdb.bytes.written"] + stats["rocksdb.compact.read.bytes"] + stats["rocksdb.compact.write.bytes"] +
+        stats["rocksdb.flush.write.bytes"]) / PAGESIZE
+    );
+    spdlog::info("(l0, l1, l2plus, bf_pos, bf_true_pos, bytes_written, compact_read, compact_writes, flush) : ({}, {}, {}, {}, {}, {}, {}, {}, {})",
+        stats["rocksdb.l0.hit"],
+        stats["rocksdb.l1.hit"],
+        stats["rocksdb.l2andup.hit"],
+        stats["rocksdb.bloom.filter.full.positive"],
+        stats["rocksdb.bloom.filter.full.true.positive"],
+        stats["rocksdb.rocksdb.bytes.written"],
+        stats["rocksdb.compact.read.bytes"],
+        stats["rocksdb.compact.write.bytes"],
+        stats["rocksdb.flush.write.bytes"]
+    );
     spdlog::info("(read, write, compact_read, compact_write) : ({}, {}, {}, {})",
-        stats["rocksdb.bytes.read"],
+        stats["rocksdb.bytes.read"] + stats["rocksdb.db.iter.bytes.read"],
         stats["rocksdb.bytes.written"],
         stats["rocksdb.compact.read.bytes"],
         stats["rocksdb.compact.write.bytes"]

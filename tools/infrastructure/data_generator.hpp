@@ -10,7 +10,10 @@
 
 #include "spdlog/spdlog.h"
 
-#define KEY_DOMAIN 1000000000
+#define KEY_DOMAIN 10000000
+#define KEY_MIDDLE_RIGHT 5600000
+#define KEY_MIDDLE_LEFT 4600000
+#define KEY_BOTTOM 0
 
 class DataGenerator
 {
@@ -41,8 +44,13 @@ public:
 
     std::string generate_val(size_t value_size, const std::string value_prefix);
 
+    std::string generate_rnd();
+
 private:
-    std::uniform_int_distribution<int> dist;
+    // We generate a distribution with a large gap in the middle in order fo the test suite to have the functionality of
+    // giving keys that are still in the domain but gurantee an empty read
+    std::uniform_int_distribution<int> dist_left;
+    std::uniform_int_distribution<int> dist_right;
     std::mt19937 engine;
 };
 

@@ -4,7 +4,9 @@
 RandomGenerator::RandomGenerator()
 {
     this->engine.seed(this->seed);
-    this->dist = std::uniform_int_distribution<int>(0, KEY_DOMAIN);
+    srand(this->seed);
+    this->dist_left = std::uniform_int_distribution<int>(KEY_BOTTOM, KEY_MIDDLE_LEFT);
+    this->dist_right = std::uniform_int_distribution<int>(KEY_MIDDLE_RIGHT, KEY_DOMAIN);
 }
 
 
@@ -12,6 +14,19 @@ RandomGenerator::RandomGenerator(int seed)
 {
     this->seed = seed;
     RandomGenerator();
+}
+
+
+std::string RandomGenerator::generate_rnd()
+{
+    if (rand() % 2)
+    {
+        return std::to_string(this->dist_left(this->engine));
+    }
+    else
+    {
+        return std::to_string(this->dist_right(this->engine));
+    }
 }
 
 
@@ -37,8 +52,8 @@ std::pair<std::string, std::string> DataGenerator::generate_kv_pair(
 
 std::string RandomGenerator::generate_key(const std::string key_prefix)
 {
-    int rand = this->dist(this->engine);
-    std::string key = key_prefix + std::to_string(rand);
+    std::string rand = this->generate_rnd();
+    std::string key = key_prefix + rand;
 
     return key;
 }
