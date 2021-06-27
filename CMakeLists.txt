@@ -83,9 +83,9 @@ file(GLOB_RECURSE
         TMPDB_SRCS
         CONFIGURE_DEPENDS
         ${CMAKE_SOURCE_DIR}/src/tmpdb/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/monkey/*.cpp
+        ${CMAKE_SOURCE_DIR}/src/monkey/monkey_filter_policy.cpp
         ${CMAKE_SOURCE_DIR}/src/tmpdb/*.hpp
-        ${CMAKE_SOURCE_DIR}/src/monkey/*.hpp
+        ${CMAKE_SOURCE_DIR}/src/monkey/monkey_filter_policy.hpp
 )
 
 add_library(tmpdb OBJECT "${TMPDB_SRCS}")
@@ -102,6 +102,7 @@ target_compile_features(tmpdb PUBLIC
 target_include_directories(tmpdb PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/extern
+    ${CMAKE_SOURCE_DIR}/extern/rocksdb/include/rocksdb
 )
 
 target_compile_options(tmpdb PUBLIC
@@ -110,6 +111,7 @@ target_compile_options(tmpdb PUBLIC
     "-fstack-protector-strong"
     "-fexceptions"
     "-fasynchronous-unwind-tables"
+    "-fno-rtti"
     $<$<BOOL:${DEBUG}>:-g2>
     $<IF:$<BOOL:${DEBUG}>,-O0,-O2>
 )
@@ -185,5 +187,5 @@ target_link_libraries(db_builder tmpdb tools)
 add_executable(db_runner ${CMAKE_SOURCE_DIR}/tools/db_runner.cpp)
 target_link_libraries(db_runner tmpdb tools)
 
-add_executable(compact_files_example ${CMAKE_SOURCE_DIR}/example/compact_files_example.cc)
-target_link_libraries(compact_files_example tmpdb)
+# add_executable(compact_files_example ${CMAKE_SOURCE_DIR}/example/compact_files_example.cc)
+# target_link_libraries(compact_files_example tmpdb)

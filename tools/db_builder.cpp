@@ -204,6 +204,7 @@ void build_db(environment & env)
     }
     table_options.no_block_cache = true;
     table_options.filter_policy.reset(monkey);
+    // table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(env.bits_per_element));
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     rocksdb::DB *db = nullptr;
