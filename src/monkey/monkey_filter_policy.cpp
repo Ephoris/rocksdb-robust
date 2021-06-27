@@ -2,21 +2,22 @@
 
 using namespace monkey;
 
-MonkeyFilterPolicy::MonkeyFilterPolicy(double bits_per_element, std::vector<int> runs_per_level)
+MonkeyFilterPolicy::MonkeyFilterPolicy(double bits_per_element, int size_ratio, size_t levels)
     : default_bpe(bits_per_element),
-    policy(rocksdb::NewBloomFilterPolicy(bits_per_element))
+      size_ratio(size_ratio),
+      levels(levels),
+      default_policy(rocksdb::NewBloomFilterPolicy(bits_per_element))
 {
-    int num_levels = runs_per_level.size();
-    this->filters_meta.resize(num_levels);
-    for (int level_idx = 0; level_idx < num_levels; level_idx++)
+    for (size_t level; level < levels; level++)
     {
-        for (int run_idx = 0; run_idx < runs_per_level[level_idx]; run_idx++)
-        {
-            this->filters_meta[level_idx].push_back(filter_meta_data(level_idx, bits_per_element));
-        }
+        level_fpr_opt.push_back()
     }
 }
 
+
+double MonkeyFilterPolicy::optimal_false_positive_rate(size_t curr_level)
+{
+}
 
 void MonkeyFilterPolicy::CreateFilter(const rocksdb::Slice *keys, int n, std::string *dst) const
 {
