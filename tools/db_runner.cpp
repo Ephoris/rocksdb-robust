@@ -17,6 +17,7 @@
 #include "rocksdb/perf_context.h"
 
 #include "tmpdb/fluid_lsm_compactor.hpp"
+#include "monkey/monkey_filter_policy.hpp"
 #include "infrastructure/data_generator.hpp"
 
 #define PAGESIZE 4096

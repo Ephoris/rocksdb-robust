@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <vector>
+#include <cmath>
 
 #include "spdlog/spdlog.h"
 
@@ -17,11 +18,9 @@ namespace monkey {
 class MonkeyFilterPolicy : public rocksdb::FilterPolicy
 {
 public:
-    MonkeyFilterPolicy(double bits_per_element, int size_ratio, size_t levels)
-        : default_bpe(bits_per_element),
-          size_ratio(size_ratio),
-          levels(levels),
-          defualt_policy(rocksdb::NewBloomFilterPolicy(bits_per_element)) {}
+    MonkeyFilterPolicy(double bits_per_element, int size_ratio, size_t levels);
+
+    ~MonkeyFilterPolicy();
 
     const char *Name() const override {return "Monkey";}
 
@@ -29,11 +28,12 @@ public:
 
     bool KeyMayMatch(const rocksdb::Slice &key, const rocksdb::Slice &filter) const override;
 
-    double optimal_false_positive_rate(size_t curr_level);
-
     rocksdb::FilterBitsBuilder *GetBuilderWithContext(const rocksdb::FilterBuildingContext& context) const override;
+    rocksdb::FilterBitsBuilder *GetFilterBitsBuilder() const override {return nullptr;}
+    rocksdb::FilterBitsReader *GetFilterBitsReader(const rocksdb::Slice& /*contents*/) const override {return nullptr;}
 
-    rocksdb::FilterBitsReader *GetFilterBitsReader(const rocksdb::Slice &contents) const override;
+    double optimal_false_positive_rate(size_t curr_level);
+    void allocate_bits_per_level();
 
 protected:
     double default_bpe;
@@ -44,6 +44,7 @@ protected:
     std::vector<double> level_bpe;
 
     const std::unique_ptr<const rocksdb::FilterPolicy> default_policy;
+    std::vector<const rocksdb::FilterPolicy *> policy_per_level;
 };
 
 }

@@ -10,6 +10,7 @@
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
 #include "tmpdb/fluid_lsm_compactor.hpp"
+#include "monkey/monkey_filter_policy.hpp"
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
 
@@ -191,13 +192,22 @@ void build_db(environment & env)
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
     rocksdb::BlockBasedTableOptions table_options;
+    monkey::MonkeyFilterPolicy * monkey = nullptr; 
+    if (env.L > 0)
+    {
+        monkey = new monkey::MonkeyFilterPolicy(env.bits_per_element, (int) env.T, env.L);
+    }
+    else
+    {
+        monkey = new monkey::MonkeyFilterPolicy(env.bits_per_element, (int) env.T,
+                                                FluidLSMBulkLoader::estimate_levels(env.N, env.T, env.E, env.B));
+    }
     table_options.no_block_cache = true;
-    table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(env.bits_per_element, false));
+    table_options.filter_policy.reset(monkey);
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     rocksdb::DB *db = nullptr;
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
-    // db->SetOptions({{"target_file_size_multiplier", "10"}});
     if (!status.ok())
     {
         spdlog::error("Problems opening DB");
