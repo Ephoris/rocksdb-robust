@@ -38,6 +38,8 @@ typedef struct environment
     tmpdb::file_size_policy file_size_policy_opt = tmpdb::file_size_policy::INCREASING;
     uint64_t fixed_file_size = std::numeric_limits<uint64_t>::max();
 
+    bool early_fill_stop = false;
+
 } environment;
 
 
@@ -91,7 +93,9 @@ environment parse_args(int argc, char * argv[])
             (option("--parallelism") & integer("num", env.parallelism))
                 % ("parallelism for writing to db [default: " + to_string(env.parallelism) + "]"),
             (option("--seed") & integer("num", env.seed))
-                % "seed for generating data [default: random from time]"
+                % "seed for generating data [default: random from time]",
+            (option("--early_fill_stop").set(env.early_fill_stop, true))
+                % "Stops bulk loading early if N is met [default: False]"
         )
     );
 
@@ -183,7 +187,7 @@ void build_db(environment & env)
 
     fill_fluid_opt(env, fluid_opt);
     RandomGenerator gen(env.seed);
-    FluidLSMBulkLoader *fluid_compactor = new FluidLSMBulkLoader(gen, fluid_opt, rocksdb_opt);
+    FluidLSMBulkLoader *fluid_compactor = new FluidLSMBulkLoader(gen, fluid_opt, rocksdb_opt, env.early_fill_stop);
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
     rocksdb::BlockBasedTableOptions table_options;

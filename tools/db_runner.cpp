@@ -246,10 +246,14 @@ int run_range_reads(environment env,
 
     // We use existing keys to 100% enforce all range queries to be short range queries
     int key_hop = (PAGESIZE / fluid_opt->entry_size);
+    spdlog::debug("Keys per range query : {}", key_hop);
 
     std::string value;
     std::mt19937 engine;
     std::uniform_int_distribution<int> dist(0, existing_keys.size() - 1 - key_hop);
+
+    read_opt.fill_cache = false;
+    read_opt.total_order_seek = true;
 
     auto range_read_start = std::chrono::high_resolution_clock::now();
     for (size_t range_count = 0; range_count < env.range_reads; range_count++)
@@ -261,7 +265,8 @@ int run_range_reads(environment env,
         rocksdb::Iterator * it = db->NewIterator(read_opt);
         for (it->Seek(rocksdb::Slice(lower_key)); it->Valid(); it->Next())
         {
-            status = db->Get(rocksdb::ReadOptions(), it->key().ToString(), &value);
+            // status = db->Get(read_opt, it->key(), &value);
+            value = it->value().ToString();
             valid_keys++;
         }
         delete it;
@@ -375,7 +380,7 @@ void print_db_status(rocksdb::DB * db)
             level_str += file.name + ", ";
         }
         level_str = level_str == "" ? "EMPTY" : level_str.substr(0, level_str.size() - 2);
-        spdlog::debug("Level {} : {}", level_idx, level_str);
+        spdlog::debug("Level {} : {} Files : {}", level_idx, level.files.size(), level_str);
         level_idx++;
     }
 }
@@ -425,6 +430,8 @@ int main(int argc, char * argv[])
     }
 
     rocksdb_opt.statistics->Reset();
+    rocksdb::get_iostats_context()->Reset();
+    rocksdb::get_perf_context()->Reset();
     if (env.empty_reads > 0)
     {
         empty_read_duration = run_random_empty_reads(env, db); 
@@ -451,35 +458,37 @@ int main(int argc, char * argv[])
     }
 
     std::cout << rocksdb_opt.statistics->ToString() << std::endl;
+    std::cout << rocksdb::get_perf_context()->ToString() << std::endl;
+    std::cout << rocksdb::get_iostats_context()->ToString() << std::endl;
 
     std::map<std::string, uint64_t> stats;
     rocksdb_opt.statistics->getTickerMap(&stats);
 
-
-    spdlog::info("(read_io, write_io) : ({}, {})",
-        stats["rocksdb.l0.hit"] + stats["rocksdb.l1.hit"] + stats["rocksdb.l2andup.hit"] +
-        stats["rocksdb.bloom.filter.full.positive"] - stats["rocksdb.bloom.filter.full.true.positive"],
-        (stats["rocksdb.bytes.written"] + stats["rocksdb.compact.read.bytes"] + stats["rocksdb.compact.write.bytes"] +
-        stats["rocksdb.flush.write.bytes"]) / PAGESIZE
-    );
-    spdlog::info("(l0, l1, l2plus, bf_pos, bf_true_pos, bytes_written, compact_read, compact_writes, flush) : ({}, {}, {}, {}, {}, {}, {}, {}, {})",
+    spdlog::info("(l0, l1, l2plus) : ({}, {}, {})",
         stats["rocksdb.l0.hit"],
         stats["rocksdb.l1.hit"],
-        stats["rocksdb.l2andup.hit"],
+        stats["rocksdb.l2andup.hit"]);
+    spdlog::info("(bf_pos, bf_true_pos) : ({}, {})",
         stats["rocksdb.bloom.filter.full.positive"],
-        stats["rocksdb.bloom.filter.full.true.positive"],
-        stats["rocksdb.rocksdb.bytes.written"],
-        stats["rocksdb.compact.read.bytes"],
-        stats["rocksdb.compact.write.bytes"],
-        stats["rocksdb.flush.write.bytes"]
-    );
-    spdlog::info("(read, write, compact_read, compact_write) : ({}, {}, {}, {})",
-        stats["rocksdb.bytes.read"] + stats["rocksdb.db.iter.bytes.read"],
+        stats["rocksdb.bloom.filter.full.true.positive"]);
+    spdlog::info("(bytes_written, compact_read, compact_write, flush_write) : ({}, {}, {}, {})", 
         stats["rocksdb.bytes.written"],
         stats["rocksdb.compact.read.bytes"],
-        stats["rocksdb.compact.write.bytes"]
-    );
+        stats["rocksdb.compact.write.bytes"],
+        stats["rocksdb.flush.write.bytes"]);
+    spdlog::info("(block_read_count) : ({})", rocksdb::get_perf_context()->block_read_count);
     spdlog::info("(z0, z1, q, w) : ({}, {}, {}, {})", empty_read_duration, read_duration, range_duration, write_duration);
+
+    rocksdb::ColumnFamilyMetaData cf_meta;
+    db->GetColumnFamilyMetaData(&cf_meta);
+
+    std::string run_per_level = "[";
+    for (auto & level : cf_meta.levels)
+    {
+        run_per_level += std::to_string(level.files.size()) + ", ";
+    }
+    run_per_level = run_per_level.substr(0, run_per_level.size() - 2) + "]";
+    spdlog::info("runs_per_level : {}", run_per_level);
 
     db->Close();
     delete db;
