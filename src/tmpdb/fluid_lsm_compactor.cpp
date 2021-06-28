@@ -127,7 +127,6 @@ void FluidLSMCompactor::OnFlushCompleted(rocksdb::DB *db, const ROCKSDB_NAMESPAC
         ScheduleCompaction(task);
     }
 
-
     return;
 }
 
@@ -159,17 +158,6 @@ void FluidLSMCompactor::CompactFiles(void *arg)
             task->output_level + 1,
             task->input_file_names.size(),
             s.ToString());
-        // CompactionTask *new_task = new CompactionTask(
-        //     task->db,
-        //     task->compactor,
-        //     task->column_family_name,
-        //     task->input_file_names,
-        //     task->output_level,
-        //     task->compact_options,
-        //     task->origin_level_id,
-        //     task->retry_on_fail,
-        //     true
-        // );
         CompactionTask *new_task = task->compactor->PickCompaction(
             task->db,
             task->column_family_name,

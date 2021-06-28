@@ -197,7 +197,7 @@ void build_db(environment & env)
             rocksdb::NewMonkeyFilterPolicy(
                 env.bits_per_element,
                 (int) env.T,
-                env.L));
+                env.L + 1));
     }
     else
     {
@@ -205,7 +205,7 @@ void build_db(environment & env)
             rocksdb::NewMonkeyFilterPolicy(
                 env.bits_per_element,
                 (int) env.T,
-                FluidLSMBulkLoader::estimate_levels(env.N, env.T, env.E, env.B)));
+                FluidLSMBulkLoader::estimate_levels(env.N, env.T, env.E, env.B) + 1));
     }
     table_options.no_block_cache = true;
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
@@ -220,7 +220,6 @@ void build_db(environment & env)
         exit(EXIT_FAILURE);
     }
 
-    // fluid_compactor->init_open_db(db);
     if (env.bulk_load_mode == tmpdb::bulk_load_type::LEVELS)
     {
         status = fluid_compactor->bulk_load_levels(db, env.L);

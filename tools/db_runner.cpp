@@ -29,6 +29,7 @@ typedef struct environment
     size_t empty_reads = 0;
     size_t range_reads = 0;
     size_t writes = 0;
+    size_t prime_reads = 0;
 
     int rocksdb_max_levels = 16;
     int parallelism = 1;
@@ -43,7 +44,6 @@ typedef struct environment
     int verbose = 0;
 
     bool prime_db = false;
-    size_t prime_reads = 0;
 } environment;
 
 
@@ -123,7 +123,6 @@ rocksdb::Status open_db(environment env,
 
     rocksdb_opt.write_buffer_size = fluid_opt->buffer_size; //> "Level 0" or the in memory buffer
     rocksdb_opt.num_levels = env.rocksdb_max_levels;
-    // rocksdb_opt.compaction_readahead_size = 1024 * env.compaction_readahead_size;
     rocksdb_opt.use_direct_reads = true;
     rocksdb_opt.use_direct_io_for_flush_and_compaction = true;
     rocksdb_opt.max_open_files = env.max_open_files;
@@ -151,7 +150,7 @@ rocksdb::Status open_db(environment env,
             rocksdb::NewMonkeyFilterPolicy(
                 fluid_opt->bits_per_element,
                 fluid_opt->size_ratio,
-                fluid_opt->levels));
+                fluid_opt->levels + 1));
     }
     else
     {
@@ -163,7 +162,7 @@ rocksdb::Status open_db(environment env,
                     fluid_opt->num_entries,
                     fluid_opt->size_ratio,
                     fluid_opt->entry_size,
-                    fluid_opt->buffer_size)));
+                    fluid_opt->buffer_size) + 1));
     }
     table_options.no_block_cache = true;
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
