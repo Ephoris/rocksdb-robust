@@ -145,21 +145,27 @@ rocksdb::Status open_db(environment env,
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
     rocksdb::BlockBasedTableOptions table_options;
-    rocksdb::MonkeyFilterPolicy * monkey = nullptr;
     if (fluid_opt->levels > 0)
     {
-        monkey = new rocksdb::MonkeyFilterPolicy(fluid_opt->bits_per_element,
-            fluid_opt->size_ratio,
-            fluid_opt->levels);
+        table_options.filter_policy.reset(
+            rocksdb::NewMonkeyFilterPolicy(
+                fluid_opt->bits_per_element,
+                fluid_opt->size_ratio,
+                fluid_opt->levels));
     }
     else
     {
-        monkey = new rocksdb::MonkeyFilterPolicy(fluid_opt->bits_per_element, fluid_opt->size_ratio,
-            tmpdb::FluidLSMCompactor::estimate_levels(fluid_opt->num_entries, fluid_opt->size_ratio, fluid_opt->entry_size, fluid_opt->buffer_size));
+        table_options.filter_policy.reset(
+            rocksdb::NewMonkeyFilterPolicy(
+                fluid_opt->bits_per_element,
+                fluid_opt->size_ratio, 
+                tmpdb::FluidLSMCompactor::estimate_levels(
+                    fluid_opt->num_entries,
+                    fluid_opt->size_ratio,
+                    fluid_opt->entry_size,
+                    fluid_opt->buffer_size)));
     }
     table_options.no_block_cache = true;
-    table_options.filter_policy.reset(monkey);
-    // table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(fluid_opt->bits_per_element, false));
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
@@ -481,7 +487,8 @@ int main(int argc, char * argv[])
         stats["rocksdb.l0.hit"],
         stats["rocksdb.l1.hit"],
         stats["rocksdb.l2andup.hit"]);
-    spdlog::info("(bf_pos, bf_true_pos) : ({}, {})",
+    spdlog::info("(bf_true_neg, bf_pos, bf_true_pos) : ({}, {}, {})",
+        stats["rocksdb.bloom.filter.useful"],
         stats["rocksdb.bloom.filter.full.positive"],
         stats["rocksdb.bloom.filter.full.true.positive"]);
     spdlog::info("(bytes_written, compact_read, compact_write, flush_write) : ({}, {}, {}, {})", 

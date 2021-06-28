@@ -191,19 +191,23 @@ void build_db(environment & env)
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
     rocksdb::BlockBasedTableOptions table_options;
-    rocksdb::MonkeyFilterPolicy * monkey = nullptr;
     if (env.L > 0)
     {
-        monkey = new rocksdb::MonkeyFilterPolicy(env.bits_per_element, (int) env.T, env.L);
+        table_options.filter_policy.reset(
+            rocksdb::NewMonkeyFilterPolicy(
+                env.bits_per_element,
+                (int) env.T,
+                env.L));
     }
     else
     {
-        monkey = new rocksdb::MonkeyFilterPolicy(env.bits_per_element, (int) env.T,
-                                                FluidLSMBulkLoader::estimate_levels(env.N, env.T, env.E, env.B));
+        table_options.filter_policy.reset(
+            rocksdb::NewMonkeyFilterPolicy(
+                env.bits_per_element,
+                (int) env.T,
+                FluidLSMBulkLoader::estimate_levels(env.N, env.T, env.E, env.B)));
     }
     table_options.no_block_cache = true;
-    table_options.filter_policy.reset(monkey);
-    // table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(env.bits_per_element));
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     rocksdb::DB *db = nullptr;
