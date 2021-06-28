@@ -109,7 +109,6 @@ target_compile_options(tmpdb PUBLIC
     "-fstack-protector-strong"
     "-fexceptions"
     "-fasynchronous-unwind-tables"
-    "-fno-rtti"
     $<$<BOOL:${DEBUG}>:-g2>
     $<IF:$<BOOL:${DEBUG}>,-O0,-O2>
 )
