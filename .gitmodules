@@ -1,6 +1,6 @@
 [submodule "extern/rocksdb"]
 	path = extern/rocksdb
-	url = https://github.com/facebook/rocksdb.git
+	url = https://github.com/Ephoris/rocksdb
 [submodule "extern/spdlog"]
 	path = extern/spdlog
 	url = https://github.com/gabime/spdlog

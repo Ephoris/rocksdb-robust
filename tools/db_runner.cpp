@@ -158,7 +158,7 @@ rocksdb::Status open_db(environment env,
         table_options.filter_policy.reset(new monkey::MonkeyFilterPolicy(fluid_opt->bits_per_element, fluid_opt->size_ratio,
             tmpdb::FluidLSMCompactor::estimate_levels(fluid_opt->num_entries, fluid_opt->size_ratio, fluid_opt->entry_size, fluid_opt->buffer_size)));
     }
-    table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(fluid_opt->bits_per_element, false));
+    // table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(fluid_opt->bits_per_element, false));
     rocksdb_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     rocksdb::Status status = rocksdb::DB::Open(rocksdb_opt, env.db_path, &db);
