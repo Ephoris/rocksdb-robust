@@ -10,7 +10,6 @@
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
 #include "tmpdb/fluid_lsm_compactor.hpp"
-#include "monkey/monkey_filter_policy.hpp"
 #include "infrastructure/bulk_loader.hpp"
 #include "infrastructure/data_generator.hpp"
 
@@ -192,10 +191,11 @@ void build_db(environment & env)
     rocksdb_opt.listeners.emplace_back(fluid_compactor);
 
     rocksdb::BlockBasedTableOptions table_options;
+    ROCKSDB_NAMESPACE::MonkeyFilterPolicy * monkey = nullptr;
     monkey::MonkeyFilterPolicy * monkey = nullptr; 
     if (env.L > 0)
     {
-        monkey = new monkey::MonkeyFilterPolicy(env.bits_per_element, (int) env.T, env.L);
+        monkey = new rocksdb::MonkeyFilterPolicy(env.bits_per_element, (int) env.T, env.L);
     }
     else
     {

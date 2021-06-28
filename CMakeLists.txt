@@ -83,9 +83,7 @@ file(GLOB_RECURSE
         TMPDB_SRCS
         CONFIGURE_DEPENDS
         ${CMAKE_SOURCE_DIR}/src/tmpdb/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/monkey/monkey_filter_policy.cpp
         ${CMAKE_SOURCE_DIR}/src/tmpdb/*.hpp
-        ${CMAKE_SOURCE_DIR}/src/monkey/monkey_filter_policy.hpp
 )
 
 add_library(tmpdb OBJECT "${TMPDB_SRCS}")
@@ -124,47 +122,6 @@ target_link_libraries(tmpdb PUBLIC
     rocksdb
     spdlog
 )
-
-# # =====================================================================================================================
-# # HEADER Monkey 
-# # =====================================================================================================================
-# file(GLOB_RECURSE
-#         MONKEY_SRCS
-#         CONFIGURE_DEPENDS
-#         ${CMAKE_SOURCE_DIR}/src/monkey/*.cpp
-#         ${CMAKE_SOURCE_DIR}/src/monkey/*.hpp
-# )
-
-# add_library(monkey OBJECT "${MONKEY_SRCS}")
-
-# set_target_properties(monkey PROPERTIES
-#     POSITION_INDEPENDENT_CODE ON
-#     CXX_EXTENSIONS OFF
-# )
-
-# target_compile_features(monkey PUBLIC
-#     cxx_std_11
-# )
-
-# target_include_directories(monkey PUBLIC
-#     ${CMAKE_SOURCE_DIR}/src
-#     ${CMAKE_SOURCE_DIR}/extern
-# )
-
-# target_compile_options(monkey PUBLIC
-#     "-Wall"
-#     "-Wextra"
-#     "-fstack-protector-strong"
-#     "-fexceptions"
-#     "-fasynchronous-unwind-tables"
-#     $<$<BOOL:${DEBUG}>:-g2>
-#     $<IF:$<BOOL:${DEBUG}>,-O0,-O2>
-# )
-
-# target_link_libraries(monkey PUBLIC
-#     rocksdb
-#     spdlog
-# )
 
 # =====================================================================================================================
 # Tools
