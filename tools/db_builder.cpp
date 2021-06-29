@@ -171,7 +171,7 @@ void write_existing_keys(environment & env, FluidLSMBulkLoader * fluid_compactor
     std::ofstream key_file;
     key_file.open(env.db_path + "/existing_keys.data");
     
-    spdlog::debug("Writing out {} exisiting keys", fluid_compactor->keys.size());
+    spdlog::info("Writing out {} existing keys", fluid_compactor->keys.size());
     for (auto key : fluid_compactor->keys)
     {
         key_file << key << std::endl;
