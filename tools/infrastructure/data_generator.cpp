@@ -1,8 +1,8 @@
 #include "data_generator.hpp"
 
-
-RandomGenerator::RandomGenerator()
+RandomGenerator::RandomGenerator(int seed)
 {
+    this->seed = seed;
     this->engine.seed(this->seed);
     srand(this->seed);
     this->dist_left = std::uniform_int_distribution<int>(KEY_BOTTOM, KEY_MIDDLE_LEFT);
@@ -10,16 +10,15 @@ RandomGenerator::RandomGenerator()
 }
 
 
-RandomGenerator::RandomGenerator(int seed)
+RandomGenerator::RandomGenerator()
 {
-    this->seed = seed;
-    RandomGenerator();
+    RandomGenerator(0);
 }
 
 
 std::string RandomGenerator::generate_rnd()
 {
-    if (rand() % 2)
+    if (std::rand() % 2)
     {
         return std::to_string(this->dist_left(this->engine));
     }

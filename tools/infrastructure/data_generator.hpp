@@ -36,9 +36,8 @@ public:
 class RandomGenerator : public DataGenerator
 {
 public:
-    RandomGenerator();
-
     RandomGenerator(int seed);
+    RandomGenerator();
 
     std::string generate_key(const std::string key_prefix);
 

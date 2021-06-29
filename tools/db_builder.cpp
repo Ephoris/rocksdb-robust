@@ -34,7 +34,7 @@ typedef struct environment
     int max_rocksdb_levels = 16;
     int parallelism = 1;
 
-    int seed = std::time(nullptr);
+    int seed = 0;
     tmpdb::file_size_policy file_size_policy_opt = tmpdb::file_size_policy::INCREASING;
     uint64_t fixed_file_size = std::numeric_limits<uint64_t>::max();
 
@@ -166,6 +166,20 @@ void fill_fluid_opt(environment env, tmpdb::FluidOptions &fluid_opt)
 }
 
 
+void write_existing_keys(environment & env, FluidLSMBulkLoader * fluid_compactor)
+{
+    std::ofstream key_file;
+    key_file.open(env.db_path + "/existing_keys.data");
+
+    for (auto key : fluid_compactor->keys)
+    {
+        key_file << key << std::endl;
+    }
+
+    key_file.close();
+}
+
+
 void build_db(environment & env)
 {
     spdlog::info("Building DB: {}", env.db_path);
@@ -261,6 +275,7 @@ void build_db(environment & env)
         }
     }
 
+    write_existing_keys(env, fluid_compactor);
     fluid_opt.write_config(env.db_path + "/fluid_config.json");
 
     db->Close();

@@ -35,7 +35,7 @@ typedef struct environment
     int parallelism = 1;
 
     int compaction_readahead_size = 64;
-    int seed = std::time(nullptr);
+    int seed = 42;
     int max_open_files = 512;
 
     std::string write_out_path;
@@ -81,7 +81,9 @@ environment parse_args(int argc, char * argv[])
         (option("--parallelism") & integer("threads", env.parallelism))
             % ("Threads allocated for RocksDB [default: " + to_string(env.parallelism) + "]"),
         (option("--compact-readahead") & integer("size", env.compaction_readahead_size))
-            % ("Use 2048 for HDD, 64 for flash [default: " + to_string(env.compaction_readahead_size) + "]")
+            % ("Use 2048 for HDD, 64 for flash [default: " + to_string(env.compaction_readahead_size) + "]"),
+        (option("--rand_seed") & integer("seed", env.seed))
+            % ("Random seed for experiment reproducability [default: " + to_string(env.seed) + "]")
     );
 
     auto cli = (
@@ -180,30 +182,43 @@ rocksdb::Status open_db(environment env,
 }
 
 
-std::vector<std::string> get_all_valid_keys(environment, rocksdb::DB * db)
+std::vector<std::string> get_all_valid_keys(environment env)
 {
     // TODO: In reality we should be saving the list of all keys while building the DB to speed up testing. No need to
     // go through and retrieve all keys manually
     spdlog::debug("Grabbing existing keys");
     std::vector<std::string> existing_keys;
+    std::string key;
+    std::ifstream key_file(env.db_path + "/existing_keys.data");
 
-    rocksdb::Iterator *rocksdb_it = db->NewIterator(rocksdb::ReadOptions());
-    for (rocksdb_it->SeekToFirst(); rocksdb_it->Valid(); rocksdb_it->Next())
+    if (key_file.is_open())
     {
-        existing_keys.push_back(rocksdb_it->key().ToString());
-    }
-
-    if (!rocksdb_it->status().ok())
-    {
-        spdlog::error("Unable to retrieve all keys : {}", rocksdb_it->status().ToString());
-        delete rocksdb_it;
-        delete db;
-        exit(EXIT_FAILURE);
+        while (std::getline(key_file, key))
+        {
+            existing_keys.push_back(key);
+        }
     }
 
     std::sort(existing_keys.begin(), existing_keys.end());
 
     return existing_keys;
+}
+
+
+void append_valid_keys(environment env, std::vector<std::string> & new_keys)
+{
+    spdlog::debug("Adding new keys to existing key file");
+    std::ofstream key_file;
+
+    key_file.open(env.db_path + "/existing_keys.data", std::ios::app);
+
+    for (auto key : new_keys)
+    {
+        spdlog::info("Adding new key {}", key);
+        key_file << key << std::endl;
+    }
+
+    key_file.close();
 }
 
 
@@ -307,6 +322,7 @@ int run_random_inserts(environment env,
     spdlog::info("{} Write Queries", env.writes);
     rocksdb::WriteOptions write_opt;
     rocksdb::Status status;
+    std::vector<std::string> new_keys;
     write_opt.sync = false; //> make every write wait for sync with log (so we see real perf impact of insert)
     write_opt.low_pri = true; //> every insert is less important than compaction
     write_opt.disableWAL = true; 
@@ -321,6 +337,7 @@ int run_random_inserts(environment env,
     for (size_t write_idx = 0; write_idx < env.writes; write_idx++)
     {
         std::pair<std::string, std::string> entry = data_gen.generate_kv_pair(fluid_opt->entry_size);
+        new_keys.push_back(entry.first);
         status = db->Put(write_opt, entry.first, entry.second);
         if (!status.ok())
         {
@@ -358,6 +375,8 @@ int run_random_inserts(environment env,
     auto end_write_time = std::chrono::high_resolution_clock::now();
     auto write_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_write_time - start_write_time);
     spdlog::info("Write time elapsed : {} ms", write_duration.count());
+
+    append_valid_keys(env, new_keys);
 
     return write_duration.count();
 }
@@ -444,7 +463,7 @@ int main(int argc, char * argv[])
     
     if ((env.non_empty_reads > 0) || (env.range_reads > 0))
     {
-        existing_keys = get_all_valid_keys(env, db);
+        existing_keys = get_all_valid_keys(env);
     }
 
     rocksdb_opt.statistics->Reset();

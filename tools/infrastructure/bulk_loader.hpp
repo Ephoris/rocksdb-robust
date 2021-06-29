@@ -18,6 +18,7 @@ class FluidLSMBulkLoader : public tmpdb::FluidLSMCompactor
 {
 public:
     bool stop_after_level_filled;
+    std::vector<std::string> keys;
 
     FluidLSMBulkLoader(
         DataGenerator &data_gen,
