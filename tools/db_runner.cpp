@@ -214,7 +214,6 @@ void append_valid_keys(environment env, std::vector<std::string> & new_keys)
 
     for (auto key : new_keys)
     {
-        spdlog::info("Adding new key {}", key);
         key_file << key << std::endl;
     }
 
@@ -494,9 +493,9 @@ int main(int argc, char * argv[])
         print_db_status(db);
     }
 
-    std::cout << rocksdb_opt.statistics->ToString() << std::endl;
-    std::cout << rocksdb::get_perf_context()->ToString() << std::endl;
-    std::cout << rocksdb::get_iostats_context()->ToString() << std::endl;
+    // std::cout << rocksdb_opt.statistics->ToString() << std::endl;
+    // std::cout << rocksdb::get_perf_context()->ToString() << std::endl;
+    // std::cout << rocksdb::get_iostats_context()->ToString() << std::endl;
 
     std::map<std::string, uint64_t> stats;
     rocksdb_opt.statistics->getTickerMap(&stats);
